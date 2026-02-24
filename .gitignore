@@ -1,3 +1,5 @@
 **/*.tba
 *.tba
 configure.sh
+Makefile
+**/Makefile
