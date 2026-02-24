@@ -1,0 +1,6 @@
+TITLE(Operating System)
+AUTHOR(Lucas Hooghof)
+
+FLAG(prefix --prefix= string build/)
+
+ADD_DIR(tools/ImgMake)

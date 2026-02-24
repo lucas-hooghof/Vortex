@@ -1,0 +1,6 @@
+C_COMPILER(gcc)
+
+FILES(main.c)
+ADD_CFLAGS(-Wall)
+
+OUTPUT(ImgMake)
