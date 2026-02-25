@@ -3,4 +3,4 @@ AUTHOR(Lucas Hooghof)
 
 FLAG(prefix --prefix= string build/)
 
-ADD_DIR(tools/ImgMake)
+ADD_DIR(efi)

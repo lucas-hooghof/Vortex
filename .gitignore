@@ -3,3 +3,6 @@
 configure.sh
 Makefile
 **/Makefile
+*.hda
+build/
+Vortex.hdd
