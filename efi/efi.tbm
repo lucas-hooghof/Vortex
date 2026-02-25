@@ -6,6 +6,6 @@ ADD_LDFLAGS(-nostdlib -Wl,--subsystem,10 -e efi_main)
 
 FILES(efi.c)
 
-POSTBUILDCOMMAND(../scripts/genimg.sh Vortex.hdd %prefix%/BOOTX64.EFI)
+POSTBUILDCOMMAND(../scripts/genimg.sh %workingdir%/%prefix%Vortex.hdd %workingdir%/%prefix%BOOTX64.EFI)
 
 OUTPUT(BOOTX64.EFI)
