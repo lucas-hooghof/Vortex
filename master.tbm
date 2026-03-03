@@ -2,5 +2,7 @@ TITLE(Operating System)
 AUTHOR(Lucas Hooghof)
 
 FLAG(prefix --prefix= string build/)
+FLAG(target --target= string x86_64)
 
 ADD_DIR(efi)
+ADD_DIR(kernel)

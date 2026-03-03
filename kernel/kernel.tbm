@@ -1,0 +1,14 @@
+C_COMPILER(x86_64-elf-gcc)
+CC_COMPILER(x86_64-elf-g++)
+ASSEMBLER(nasm)
+LINKER(x86_64-elf-ld)
+
+FILES(*.cpp)
+EXCEPT(arch/*.cpp)
+FILES(arch/%target%/*.cpp)
+
+ADD_CCFLAGS(-Wall -Wextra -Wpedantic -Werror -ffreestanding -fPIE)
+ADD_LDFLAGS(-nostdlib -T linker.ld -pie)
+
+
+OUTPUT(kernel)

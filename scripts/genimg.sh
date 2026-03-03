@@ -3,10 +3,10 @@
 # --- CONFIGURATION ---
 FILENAME="$1"
 EFI_FILE="$2"       # File to put in EFI/BOOT
-BLOCKS=1000000        # Number of 512-byte blocks
-ESP_SIZE_MB=100     # Size of EFI System Partition
+BLOCKS=26624        # Number of 512-byte blocks
+ESP_SIZE_MB=10     # Size of EFI System Partition
 ROOT_GUID="a5e8bf06-1238-11f1-b74b-00155d0f3cbb" # Replace with your GUID
-OTHER_SIZE_MB=200   # Size of your other partition
+OTHER_SIZE_MB=2   # Size of your other partition
 
 # --- VALIDATION ---
 if [ -z "$FILENAME" ] || [ -z "$EFI_FILE" ]; then
@@ -20,7 +20,7 @@ if [ ! -f "$EFI_FILE" ]; then
     exit 1
 fi
 
-dd if=/dev/zero of="$FILENAME" bs=512 count="$BLOCKS" status=progress
+fallocate -l $(($BLOCKS * 512)) $FILENAME
 
 # --- Setup loop device ---
 LOOPDEV=$(sudo losetup --show -f "$FILENAME")

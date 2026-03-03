@@ -6,3 +6,4 @@ Makefile
 *.hda
 build/
 Vortex.hdd
+.vscode
