@@ -6,3 +6,5 @@ FLAG(target --target= string x86_64)
 
 ADD_DIR(efi)
 ADD_DIR(kernel)
+DEPS_DIR(kernel efi)
+

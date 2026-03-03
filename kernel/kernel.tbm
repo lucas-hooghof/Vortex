@@ -12,3 +12,4 @@ ADD_LDFLAGS(-nostdlib -T linker.ld -pie)
 
 
 OUTPUT(kernel)
+POSTBUILDCOMMAND(../scripts/CopyKernel.sh %workingdir%/%prefix%Vortex.hdd %workingdir%/%prefix%kernel)

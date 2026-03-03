@@ -87,7 +87,7 @@ typedef UINT64 EFI_VIRTUAL_ADDRESS;
 
 #define EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL_GUID \
  {0x387477c2,0x69c7,0x11d2,\
-  {0x8e,0x39,0x00,0xa0,0xc9,0x69,0x72,0x3b}}
+  0x8e,0x39,{0x00,0xa0,0xc9,0x69,0x72,0x3b}}
 
 typedef struct _EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL;
 
@@ -142,6 +142,257 @@ typedef struct {
   UINT32      Reserved;
  } EFI_TABLE_HEADER;
 
+ #define EFI_BOOT_SERVICES_SIGNATURE 0x56524553544f4f42
+#define EFI_BOOT_SERVICES_REVISION EFI_SPECIFICATION_VERSION
+
+typedef enum {
+   AllocateAnyPages,
+   AllocateMaxAddress,
+   AllocateAddress,
+   MaxAllocateType
+} EFI_ALLOCATE_TYPE;
+
+//******************************************************
+//EFI_MEMORY_TYPE
+//******************************************************
+// These type values are discussed in Memory Type Usage before ExitBootServices()  and  Memory Type Usage after ExitBootServices().
+typedef enum {
+   EfiReservedMemoryType,
+   EfiLoaderCode,
+   EfiLoaderData,
+   EfiBootServicesCode,
+   EfiBootServicesData,
+   EfiRuntimeServicesCode,
+   EfiRuntimeServicesData,
+   EfiConventionalMemory,
+   EfiUnusableMemory,
+   EfiACPIReclaimMemory,
+   EfiACPIMemoryNVS,
+   EfiMemoryMappedIO,
+   EfiMemoryMappedIOPortSpace,
+   EfiPalCode,
+   EfiPersistentMemory,
+   EfiUnacceptedMemoryType,
+   EfiMaxMemoryType
+} EFI_MEMORY_TYPE;
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_ALLOCATE_PAGES) (
+   IN EFI_ALLOCATE_TYPE                   Type,
+   IN EFI_MEMORY_TYPE                     MemoryType,
+   IN UINTN                               Pages,
+   IN OUT EFI_PHYSICAL_ADDRESS            *Memory
+   );
+
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_FREE_PAGES) (
+IN EFI_PHYSICAL_ADDRESS    Memory,
+IN UINTN                   Pages
+);
+
+typedef struct {
+   UINT32                     Type;
+   EFI_PHYSICAL_ADDRESS       PhysicalStart;
+   EFI_VIRTUAL_ADDRESS        VirtualStart;
+   UINT64                     NumberOfPages;
+   UINT64                     Attribute;
+  } EFI_MEMORY_DESCRIPTOR;
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_GET_MEMORY_MAP) (
+   IN OUT UINTN                  *MemoryMapSize,
+   OUT EFI_MEMORY_DESCRIPTOR     *MemoryMap,
+   OUT UINTN                     *MapKey,
+   OUT UINTN                     *DescriptorSize,
+   OUT UINT32                    *DescriptorVersion
+  );
+
+typedef
+EFI_STATUS
+(EFIAPI  *EFI_ALLOCATE_POOL) (
+   IN EFI_MEMORY_TYPE            PoolType,
+   IN UINTN                      Size,
+   OUT VOID                      **Buffer
+   );
+
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_FREE_POOL) (
+   IN VOID           *Buffer
+   );
+
+typedef enum {
+   AllHandles,
+   ByRegisterNotify,
+   ByProtocol
+  } EFI_LOCATE_SEARCH_TYPE;
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_HANDLE_PROTOCOL) (
+   IN EFI_HANDLE                    Handle,
+   IN EFI_GUID                      *Protocol,
+   OUT VOID                         **Interface
+   );
+
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_OPEN_PROTOCOL) (
+   IN EFI_HANDLE                    Handle,
+   IN EFI_GUID                      *Protocol,
+   OUT VOID                         **Interface OPTIONAL,
+   IN EFI_HANDLE                    AgentHandle,
+   IN EFI_HANDLE                    ControllerHandle,
+   IN UINT32                        Attributes
+   );
+
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_CLOSE_PROTOCOL) (
+   IN EFI_HANDLE                 Handle,
+   IN EFI_GUID                   *Protocol,
+   IN EFI_HANDLE                 AgentHandle,
+   IN EFI_HANDLE                 ControllerHandle
+   );
+
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_LOCATE_PROTOCOL) (
+  IN EFI_GUID                            *Protocol,
+  IN VOID                                *Registration OPTIONAL,
+  OUT VOID                               **Interface
+ );
+
+
+ typedef
+EFI_STATUS
+(EFIAPI *EFI_LOCATE_HANDLE_BUFFER) (
+   IN EFI_LOCATE_SEARCH_TYPE                    SearchType,
+   IN EFI_GUID                                  *Protocol OPTIONAL,
+   IN VOID                                      *SearchKey OPTIONAL,
+   OUT UINTN                                    *NoHandles,
+   OUT EFI_HANDLE                               **Buffer
+   );
+
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_LOCATE_HANDLE) (
+   IN EFI_LOCATE_SEARCH_TYPE                 SearchType,
+   IN EFI_GUID                               *Protocol OPTIONAL,
+   IN VOID                                   *SearchKey OPTIONAL,
+   IN OUT UINTN                              *BufferSize,
+   OUT EFI_HANDLE                            *Buffer
+   );
+
+ typedef  EFI_STATUS
+(EFIAPI *EFI_EXIT_BOOT_SERVICES) (
+  IN EFI_HANDLE                       ImageHandle,
+  IN UINTN                            MapKey
+  );
+
+
+#define EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL  0x00000001
+#define EFI_OPEN_PROTOCOL_GET_PROTOCOL        0x00000002
+#define EFI_OPEN_PROTOCOL_TEST_PROTOCOL       0x00000004
+#define EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER 0x00000008
+#define EFI_OPEN_PROTOCOL_BY_DRIVER           0x00000010
+#define EFI_OPEN_PROTOCOL_EXCLUSIVE           0x00000020
+
+typedef struct {
+  EFI_TABLE_HEADER     Hdr;
+
+  //
+  // Task Priority Services
+  //
+    EFI_HANDLE        RaiseTPL;       // EFI 1.0+
+    EFI_HANDLE      RestoreTPL;     // EFI 1.0+
+
+    //
+    // Memory Services
+    //
+    EFI_ALLOCATE_PAGES   AllocatePages;  // EFI 1.0+
+    EFI_FREE_PAGES       FreePages;      // EFI 1.0+
+    EFI_GET_MEMORY_MAP   GetMemoryMap;   // EFI 1.0+
+    EFI_ALLOCATE_POOL    AllocatePool;   // EFI 1.0+
+    EFI_FREE_POOL        FreePool;       // EFI 1.0+
+
+    //
+    // Event & Timer Services
+    //
+    EFI_HANDLE     CreateEvent;    // EFI 1.0+
+    EFI_HANDLE        SetTimer;       // EFI 1.0+
+    EFI_HANDLE   WaitForEvent;   // EFI 1.0+
+    EFI_HANDLE     SignalEvent;    // EFI 1.0+
+    EFI_HANDLE      CloseEvent;     // EFI 1.0+
+    EFI_HANDLE      CheckEvent;     // EFI 1.0+
+
+    //
+    // Protocol Handler Services
+    //
+    EFI_HANDLE     InstallProtocolInterface;            // EFI 1.0+
+    EFI_HANDLE   ReinstallProtocolInterface;          // EFI 1.0+
+    EFI_HANDLE   UninstallProtocolInterface;          // EFI 1.0+
+    EFI_HANDLE_PROTOCOL                HandleProtocol;                      // EFI 1.0+
+    VOID*   Reserved;    // EFI 1.0+
+    EFI_HANDLE       RegisterProtocolNotify;              // EFI  1.0+
+    EFI_LOCATE_HANDLE                  LocateHandle;                        // EFI 1.0+
+    EFI_HANDLE             LocateDevicePath;                    // EFI 1.0+
+    EFI_HANDLE       InstallConfigurationTable;           // EFI 1.0+
+
+    //
+    // Image Services
+    //
+    EFI_HANDLE               LoadImage;        // EFI 1.0+
+    EFI_HANDLE                StartImage;       // EFI 1.0+
+    EFI_HANDLE                       Exit;             // EFI 1.0+
+    EFI_HANDLE               UnloadImage;      // EFI 1.0+
+    EFI_EXIT_BOOT_SERVICES         ExitBootServices; // EFI 1.0+
+
+    //
+    // Miscellaneous Services
+    //
+    EFI_HANDLE   GetNextMonotonicCount; // EFI 1.0+
+    EFI_HANDLE                      Stall;                 // EFI 1.0+
+    EFI_HANDLE         SetWatchdogTimer;      // EFI 1.0+
+
+    //
+    // DriverSupport Services
+    //
+    EFI_HANDLE         ConnectController;     // EFI 1.1
+    EFI_HANDLE      DisconnectController;  // EFI 1.1+
+
+    //
+    // Open and Close Protocol Services
+    //
+    EFI_OPEN_PROTOCOL              OpenProtocol;           // EFI 1.1+
+    EFI_CLOSE_PROTOCOL             CloseProtocol;          // EFI 1.1+
+ EFI_HANDLE     OpenProtocolInformation;// EFI 1.1+
+
+    //
+    // Library Services
+    //
+    EFI_HANDLE       ProtocolsPerHandle;     // EFI 1.1+
+    EFI_LOCATE_HANDLE_BUFFER       LocateHandleBuffer;     // EFI 1.1+
+    EFI_LOCATE_PROTOCOL            LocateProtocol;         // EFI 1.1+
+  EFI_HANDLE  InstallMultipleProtocolInterfaces;    // EFI 1.1+
+  EFI_HANDLE UninstallMultipleProtocolInterfaces;   // EFI 1.1+*
+
+    //
+    // 32-bit CRC Services
+    //
+    EFI_HANDLE    CalculateCrc32;     // EFI 1.1+
+
+    //
+    // Miscellaneous Services
+    //
+    EFI_HANDLE           CopyMem;        // EFI 1.1+
+    EFI_HANDLE            SetMem;         // EFI 1.1+
+    EFI_HANDLE    CreateEventEx;  // UEFI 2.0+
+  } EFI_BOOT_SERVICES;
+
 typedef struct {
   EFI_TABLE_HEADER                 Hdr;
   CHAR16                           *FirmwareVendor;
@@ -153,7 +404,190 @@ typedef struct {
   EFI_HANDLE                       StandardErrorHandle;
   EFI_HANDLE                       *StdErr;
   EFI_HANDLE                       *RuntimeServices;
-  EFI_HANDLE                       *BootServices;
+  EFI_BOOT_SERVICES                *BootServices;
   UINTN                            NumberOfTableEntries;
   VOID*                            *ConfigurationTable;
 } EFI_SYSTEM_TABLE;
+
+#define EFI_BLOCK_IO_PROTOCOL_GUID \
+ {0x964e5b21,0x6459,0x11d2,\
+  0x8e,0x39,{0x00,0xa0,0xc9,0x69,0x72,0x3b}}
+
+  #define EFI_BLOCK_IO_PROTOCOL_REVISION2   0x00020001
+#define EFI_BLOCK_IO_PROTOCOL_REVISION3   ((2<<16) | (31))
+
+typedef struct _EFI_BLOCK_IO_PROTOCOL EFI_BLOCK_IO_PROTOCOL;
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_BLOCK_RESET) (
+  IN EFI_BLOCK_IO_PROTOCOL    *This,
+  IN BOOLEAN                  ExtendedVerification
+  );
+typedef
+EFI_STATUS
+(EFIAPI *EFI_BLOCK_READ) (
+  IN EFI_BLOCK_IO_PROTOCOL    *This,
+  IN UINT32                   MediaId,
+  IN EFI_LBA                  LBA,
+  IN UINTN                    BufferSize,
+  OUT VOID                    *Buffer
+  );
+
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_BLOCK_WRITE) (
+  IN EFI_BLOCK_IO_PROTOCOL       *This,
+  IN UINT32                      MediaId,
+  IN EFI_LBA                     LBA,
+  IN UINTN                       BufferSize,
+  IN VOID                        *Buffer
+  );
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_BLOCK_FLUSH) (
+  IN EFI_BLOCK_IO_PROTOCOL    *This
+  );
+
+typedef struct {
+  UINT32                    MediaId;
+  BOOLEAN                   RemovableMedia;
+  BOOLEAN                   MediaPresent;
+  BOOLEAN                   LogicalPartition;
+  BOOLEAN                   ReadOnly;
+  BOOLEAN                   WriteCaching;
+  UINT32                    BlockSize;
+  UINT32                    IoAlign;
+  EFI_LBA                   LastBlock;
+
+   EFI_LBA                 LowestAlignedLba; //added in Revision 2
+   UINT32                  LogicalBlocksPerPhysicalBlock;
+//added in Revision 2
+UINT32 OptimalTransferLengthGranularity;
+// added in Revision 3
+} EFI_BLOCK_IO_MEDIA;
+
+
+
+typedef struct _EFI_BLOCK_IO_PROTOCOL {
+  UINT64                         Revision;
+  EFI_BLOCK_IO_MEDIA             *Media;
+  EFI_BLOCK_RESET                Reset;
+  EFI_BLOCK_READ                 ReadBlocks;
+  EFI_BLOCK_WRITE                WriteBlocks;
+  EFI_BLOCK_FLUSH                FlushBlocks;
+} EFI_BLOCK_IO_PROTOCOL;
+
+#define EFI_LOADED_IMAGE_PROTOCOL_GUID \
+  {0x5B1B31A1,0x9562,0x11d2,\
+    0x8E,0x3F,{0x00,0xA0,0xC9,0x69,0x72,0x3B}}
+
+    #define EFI_LOADED_IMAGE_PROTOCOL_REVISION 0x1000
+
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_IMAGE_UNLOAD) (
+  IN EFI_HANDLE               ImageHandle
+  );
+
+#define EFI_DEVICE_PATH_PROTOCOL_GUID \
+  {0x09576e91,0x6d3f,0x11d2,\
+    0x8e,0x39,{0x00,0xa0,0xc9,0x69,0x72,0x3b}}
+
+typedef struct _EFI_DEVICE_PATH_PROTOCOL {
+  UINT8           Type;
+  UINT8           SubType;
+  UINT8           Length[2];
+ } EFI_DEVICE_PATH_PROTOCOL;
+
+typedef struct {
+   UINT32                        Revision;
+   EFI_HANDLE                    ParentHandle;
+   EFI_SYSTEM_TABLE              *SystemTable;
+
+   // Source location of the image
+   EFI_HANDLE                    DeviceHandle;
+   EFI_DEVICE_PATH_PROTOCOL      *FilePath;
+   VOID                          *Reserved;
+
+   // Image’s load options
+   UINT32                        LoadOptionsSize;
+   VOID                          *LoadOptions;
+
+   // Location where image was loaded
+   VOID                          *ImageBase;
+   UINT64                        ImageSize;
+   EFI_MEMORY_TYPE               ImageCodeType;
+   EFI_MEMORY_TYPE               ImageDataType;
+   EFI_IMAGE_UNLOAD              Unload;
+} EFI_LOADED_IMAGE_PROTOCOL;
+
+#define EFI_PARTITION_INFO_PROTOCOL_GUID \
+  { \
+  0x8cf2f62c, 0xbc9b, 0x4821, 0x80, 0x8d, {0xec, 0x9e, \
+                  0xc4, 0x21, 0xa1, 0xa0} \
+}
+
+#define EFI_PARTITION_INFO_PROTOCOL_REVISION 0x0001000
+#define PARTITION_TYPE_OTHER 0x00
+#define PARTITION_TYPE_MBR 0x01
+#define PARTITION_TYPE_GPT 0x02
+
+#define PARTITION_TYPE_OTHER                 0x00
+#define PARTITION_TYPE_MBR                   0x01
+#define PARTITION_TYPE_GPT                   0x02
+
+typedef struct {
+    UINT8 BootIndicator;
+    UINT8 StartHead;
+    UINT8 StartSector;
+    UINT8 StartTrack;
+    UINT8 OSIndicator;
+    UINT8 EndHead;
+    UINT8 EndSector;
+    UINT8 EndTrack;
+    UINT8 StartingLBA[4];
+    UINT8 SizeInLBA[4];
+} __attribute__ ((packed)) MBR_PARTITION_RECORD;
+
+
+typedef struct {
+    UINT8                BootStrapCode[440];
+    UINT8                UniqueMbrSignature[4];
+    UINT8                Unknown[2];
+    MBR_PARTITION_RECORD Partition[4];
+    UINT16               Signature;
+} __attribute__ ((packed)) MASTER_BOOT_RECORD;
+
+
+typedef struct {
+    EFI_GUID PartitionTypeGUID;
+    EFI_GUID UniquePartitionGUID;
+    EFI_LBA  StartingLBA;
+    EFI_LBA  EndingLBA;
+    UINT64   Attributes;
+    CHAR16   PartitionName[36];
+} __attribute__ ((packed)) EFI_PARTITION_ENTRY;
+
+
+
+
+typedef struct {
+
+  UINT32         Revision;
+  UINT32         Type;
+  UINT8          System;
+  UINT8          Reserved[7];
+  union {
+   ///
+   /// MBR data
+   ///
+   MBR_PARTITION_RECORD Mbr;
+
+   ///
+   /// GPT data
+   ///
+   EFI_PARTITION_ENTRY Gpt;
+  } Info;
+}__attribute__((packed)) EFI_PARTITION_INFO_PROTOCOL;
