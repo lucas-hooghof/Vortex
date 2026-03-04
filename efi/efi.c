@@ -394,7 +394,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* Systemtable)
             ptr += sizeof(VXFS_DIRENTRY);
             if (direntry->NameLenght == 0 || direntry->valid != 1) break;
             if (strlen("system") == direntry->NameLenght) {
-                cout->OutputString(cout,u"Found system dir");
+                cout->OutputString(cout,u"Found system dir\r\n");
                 entry = direntry;
                 break;
             }
@@ -408,10 +408,215 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* Systemtable)
             return EFI_NOT_FOUND;
         }
 
+        CurrentLBA = superblock->InodeTablesStart + superblock->InodeTableSize * entry->InodeTableID  + entry->InodeID * sizeof(VXFS_INODE) / BLOCK_SIZE;
+        VXFS_INODE* inodetables = NULL;
+        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,BLOCK_SIZE,(VOID**)&inodetables);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout,u"AllocatePool failed");
 
+            return status;
+        }
+        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,512,(VOID*)inodetables);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout, u"ReadBlocks failed: ");
+            cout->OutputString(cout, itoa(status, 16));
+            cout->OutputString(cout, u"\r\n");
+
+            return status;
+        }
+        VXFS_INODE node = {0};
+        for (UINTN i = 0; i < BLOCK_SIZE / sizeof(VXFS_INODE); i++)
+        {
+            if (inodetables[i].InodeID == entry->InodeID)
+            {
+                node = inodetables[i];
+                cout->OutputString(cout,u"Found system inode\r\n");
+                break;
+            }
+        }
+
+        CurrentLBA = superblock->ExtentTableStart + superblock->ExtentTableSize * node.ExtentTableID + node.ExtentID * sizeof(VXFS_EXTENT) / BLOCK_SIZE;
+        
+        Systemtable->BootServices->FreePool(extents);
+        extents = NULL;
+        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,BLOCK_SIZE,(VOID**)&extents);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout,u"AllocatePool failed");
+
+            return status;
+        }
+
+        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,512,(VOID*)extents);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout, u"ReadBlocks failed: ");
+            cout->OutputString(cout, itoa(status, 16));
+            cout->OutputString(cout, u"\r\n");
+
+            return status;
+        }
+
+        VXFS_EXTENT extent = {0};
+        for (UINTN i = 0; i < BLOCK_SIZE / sizeof(VXFS_EXTENT); i++)
+        {
+            if (node.ExtentID == extents[i].ExtentID)
+            {
+                extent = extents[i];
+                cout->OutputString(cout,u"Found system extent\r\n");
+                break;
+            }
+        }
+
+        cout->OutputString(cout,u"System Dir: ");
+        print_uint(extent.StartSector);
+        cout->OutputString(cout,u"\r\n");
+        cout->OutputString(cout,u"System Dir Size: ");
+        print_uint(extent.SizeInSectors);
+        cout->OutputString(cout,u"\r\n");
+
+        Systemtable->BootServices->FreePool(direntries);
+        direntries = NULL;
+        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,extent.SizeInSectors * BLOCK_SIZE,(VOID**)&direntries);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout,u"AllocatePool failed");
+
+            return status;
+        }
+        CurrentLBA = extent.StartSector;
+        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,extent.SizeInSectors * BLOCK_SIZE,(VOID*)direntries);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout, u"ReadBlocks failed: ");
+            cout->OutputString(cout, itoa(status, 16));
+            cout->OutputString(cout, u"\r\n");
+
+            return status;
+        }
+        ptr = 0;
+        VXFS_DIRENTRY*  kernelentry = NULL;
+        while (1)
+        {
+            VXFS_DIRENTRY* direntry = (VXFS_DIRENTRY*)((UINTN)(direntries) + ptr);
+            ptr += sizeof(VXFS_DIRENTRY);
+            if (direntry->NameLenght == 0 || direntry->valid != 1) break;
+            if (strlen("kernel") == direntry->NameLenght) {
+                cout->OutputString(cout,u"Found kernel\r\n");
+                kernelentry = direntry;
+                break;
+            }
+            ptr += direntry->NameLenght;
+        }
+
+        CurrentLBA = superblock->InodeTablesStart + superblock->InodeTableSize * kernelentry->InodeTableID  + kernelentry->InodeID * sizeof(VXFS_INODE) / BLOCK_SIZE;
+        Systemtable->BootServices->FreePool(inodetables);
+        inodetables = NULL;
+        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,BLOCK_SIZE,(VOID**)&inodetables);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout,u"AllocatePool failed");
+
+            return status;
+        }
+        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,512,(VOID*)inodetables);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout, u"ReadBlocks failed: ");
+            cout->OutputString(cout, itoa(status, 16));
+            cout->OutputString(cout, u"\r\n");
+
+            return status;
+        }
+        VXFS_INODE kernelnode = {0};
+        for (UINTN i = 0; i < BLOCK_SIZE / sizeof(VXFS_INODE); i++)
+        {
+            if (inodetables[i].InodeID == kernelentry->InodeID)
+            {
+                kernelnode = inodetables[i];
+                cout->OutputString(cout,u"Found kernel inode\r\n");
+                break;
+            }
+        }
+
+        CurrentLBA = superblock->ExtentTableStart + superblock->ExtentTableSize * kernelnode.ExtentTableID + kernelnode.ExtentID * sizeof(VXFS_EXTENT) / BLOCK_SIZE;
+        Systemtable->BootServices->FreePool(extents);
+        extents = NULL;
+        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,BLOCK_SIZE,(VOID**)&extents);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout,u"AllocatePool failed");
+
+            return status;
+        }
+
+        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,512,(VOID*)extents);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout, u"ReadBlocks failed: ");
+            cout->OutputString(cout, itoa(status, 16));
+            cout->OutputString(cout, u"\r\n");
+
+            return status;
+        }
+        VXFS_EXTENT kernelextent = {0};
+        for (UINTN i = 0; i < BLOCK_SIZE / sizeof(VXFS_EXTENT); i++)
+        {
+            print_uint(extents[i].ExtentID);
+            if (kernelnode.ExtentID == extents[i].ExtentID)
+            {
+                kernelextent = extents[i];
+                cout->OutputString(cout,u"Found Kernel extent\r\n");
+                break;
+            }
+        }
+
+        cout->OutputString(cout,u"Kernel Dir: ");
+        print_uint(kernelextent.StartSector);
+        cout->OutputString(cout,u"\r\n");
+        cout->OutputString(cout,u"Kernel Dir Size: ");
+        print_uint(kernelextent.SizeInSectors);
+        cout->OutputString(cout,u"\r\n");
+
+        VOID* kernel = NULL;
+        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,kernelextent.SizeInSectors * BLOCK_SIZE,(VOID**)&kernel);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout,u"AllocatePool failed");
+
+            return status;
+        }
+
+
+        CurrentLBA = kernelextent.StartSector;
+        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,kernelextent.SizeInSectors * BLOCK_SIZE,kernel);
+        if (EFI_ERROR(status))
+        {
+            cout->OutputString(cout, u"ReadBlocks failed: ");
+            cout->OutputString(cout, itoa(status, 16));
+            cout->OutputString(cout, u"\r\n");
+
+            return status;
+        }
+
+        if (!memcmp(kernel,(UINT8[4]){0x7f,0x45,0x4c,0x46},4))
+        {
+            cout->OutputString(cout, u"Kernel loaded into memory\r\n");
+        }
+
+
+        Systemtable->BootServices->FreePool(kernel);
+        Systemtable->BootServices->FreePool(extents);
+        Systemtable->BootServices->FreePool(inodetables);
+        Systemtable->BootServices->FreePool(direntries);
+        Systemtable->BootServices->FreePool(inodetable);
         Systemtable->BootServices->FreePool(superblock);
+
     }else {
         cout->OutputString(cout, u"\r\nVxFS partition NOT found.\r\n");
+        //Maybe add recovery here
         return EFI_NOT_FOUND;
     }
 
