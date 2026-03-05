@@ -5,8 +5,8 @@ LINKER(x86_64-elf-ld)
 
 FILES(*.cpp)
 
-ADD_CCFLAGS(-Wall -Wextra -Wpedantic -Werror -ffreestanding -fPIE -D%target% -I .)
-ADD_LDFLAGS(-nostdlib -T linker.ld -pie)
+ADD_CCFLAGS(-Wall -Wextra -Wpedantic -Werror -ffreestanding-D%target% -I . -g)
+ADD_LDFLAGS(-nostdlib -T linker.ld)
 
 
 

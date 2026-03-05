@@ -142,6 +142,33 @@ typedef struct {
 } Elf64_Phdr;
 
 typedef struct {
+    uint32_t sh_name;       // Section name (index into section string table)
+    uint32_t sh_type;       // Section type
+    uint64_t sh_flags;      // Section flags
+    uint64_t sh_addr;       // Virtual address in memory
+    uint64_t sh_offset;     // Offset in file
+    uint64_t sh_size;       // Size in bytes
+    uint32_t sh_link;       // Link to other section
+    uint32_t sh_info;       // Additional section information
+    uint64_t sh_addralign;  // Section alignment
+    uint64_t sh_entsize;    // Entry size if section holds table
+} Elf64_Shdr;
+
+typedef struct {
+    uint64_t r_offset;  // Location to apply the relocation
+    uint64_t r_info;    // Symbol index + type
+    int64_t  r_addend;  // Addend
+} Elf64_Rela;
+
+#define R_X86_64_RELATIVE 8
+
+// Extract relocation type from r_info
+#define ELF64_R_TYPE(info) ((uint32_t)((info) & 0xffffffff))
+
+// Extract symbol index from r_info (not needed for R_X86_64_RELATIVE)
+#define ELF64_R_SYM(info)  ((uint32_t)((info) >> 32))
+
+typedef struct {
     void*        BaseAddress;
     size_t       BufferSize;
     unsigned int Width;
@@ -178,6 +205,7 @@ typedef struct {
 } SMBIOS_TYPE1;
 
 #define ET_DYN    3
+#define ET_EXEC   2
 #define PT_LOAD   1
 #define PAGE_SIZE 4096
 
@@ -217,6 +245,16 @@ VOID* memcpy(VOID* dst, VOID* src, UINTN len)
 
 UINTN strlen_c16(CHAR16* s) { UINTN n = 0; while (*s++) n++; return n; }
 UINTN strlen(CHAR8* s)      { UINTN n = 0; while (*s++) n++; return n; }
+
+int strcmp(const char* s1, const char* s2)
+{
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+    }
+    // Return difference of first mismatched characters, cast to unsigned char
+    return (int)((unsigned char)*s1 - (unsigned char)*s2);
+}
 
 CHAR8* AsciiStrStr(const CHAR8* haystack, const CHAR8* needle)
 {
@@ -475,48 +513,34 @@ static VXFS_EXTENT InodeToExtent(
     return ReadExtent(bs, bio, sb, partStartLBA, node->ExtentTableID, node->ExtentID);
 }
 
-static VOID* LoadElf(EFI_BOOT_SERVICES* bs, VOID* kernel)
+VOID* LoadElf(EFI_BOOT_SERVICES* bs, VOID* kernel)
 {
     Elf64_Ehdr* ehdr = (Elf64_Ehdr*)kernel;
 
-    if (ehdr->e_type != ET_DYN) {
-        cout->OutputString(cout, u"Kernel is not correct executable type\r\n");
-        while (1) {}
+    // For static kernel, e_type should be ET_EXEC
+    if (ehdr->e_type != ET_EXEC) {
+        // Not a static executable
+        while(1) {}
     }
 
     Elf64_Phdr* phdr = (Elf64_Phdr*)((UINT8*)ehdr + ehdr->e_phoff);
 
-    UINTN max_align = PAGE_SIZE;
-    UINTN mem_min = UINT64_MAX, mem_max = 0;
-
+    // Copy each PT_LOAD segment to its fixed virtual address
     for (UINT16 i = 0; i < ehdr->e_phnum; i++, phdr++) {
         if (phdr->p_type != PT_LOAD) continue;
-        if (max_align < phdr->p_align) max_align = phdr->p_align;
-        UINTN begin = phdr->p_vaddr & ~(max_align - 1);
-        UINTN end   = (phdr->p_vaddr + phdr->p_memsz + max_align - 1) & ~(max_align - 1);
-        if (begin < mem_min) mem_min = begin;
-        if (end   > mem_max) mem_max = end;
+
+        UINT64 dest = phdr->p_vaddr;  // fixed virtual/physical address
+        UINT64 src  = (UINT64)kernel + phdr->p_offset;
+
+        // Zero out the memory region first
+        memset((VOID*)dest, 0, phdr->p_memsz);
+
+        // Copy the file data
+        memcpy((VOID*)dest, (VOID*)src, phdr->p_filesz);
     }
 
-    UINTN mem_size = mem_max - mem_min;
-    UINTN pages    = (mem_size + PAGE_SIZE - 1) / PAGE_SIZE;
-    EFI_PHYSICAL_ADDRESS prog = 0;
-
-    if (EFI_ERROR(bs->AllocatePages(AllocateAnyPages, EfiLoaderCode, pages, &prog))) {
-        cout->OutputString(cout, u"Failed to allocate memory for kernel\r\n");
-        while (1) {}
-    }
-    memset((VOID*)prog, 0, mem_size);
-
-    phdr = (Elf64_Phdr*)((UINT8*)ehdr + ehdr->e_phoff);
-    for (UINT16 i = 0; i < ehdr->e_phnum; i++, phdr++) {
-        if (phdr->p_type != PT_LOAD) continue;
-        memcpy((UINT8*)prog + (phdr->p_vaddr - mem_min),
-               (UINT8*)kernel + phdr->p_offset,
-               phdr->p_filesz);
-    }
-
-    return (VOID*)((UINT8*)prog + ehdr->e_entry - mem_min);
+    // No relocations needed for static kernel
+    return (VOID*)ehdr->e_entry;  // already absolute
 }
 
 static BOOLEAN DetectQEMU(EFI_SYSTEM_TABLE* ST)
@@ -714,6 +738,13 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* ST)
 
     Framebuffer fb = SetupFramebuffer(ST);
 
+
+    typedef void (*kernel_fn_t)(bootinfo_t);
+    kernel_fn_t __attribute__((sysv_abi)) kernel_main =
+        (kernel_fn_t __attribute__((sysv_abi)))(uintptr_t)entrypoint;
+
+    PSF1_FONT* font = LoadPSF1Font(NULL,u"zap-light16.psf",ImageHandle,ST);
+
     EFI_MEMORY_DESCRIPTOR* Map = NULL;
     UINTN MapSize = 0, MapKey = 0, DescriptorSize = 0;
     UINT32 DescriptorVersion = 0;
@@ -724,12 +755,6 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* ST)
     ST->BootServices->GetMemoryMap(&MapSize, Map, &MapKey, &DescriptorSize, &DescriptorVersion);
     ST->BootServices->AllocatePool(EfiLoaderData, MapSize, (VOID**)&Map);
     ST->BootServices->GetMemoryMap(&MapSize, Map, &MapKey, &DescriptorSize, &DescriptorVersion);
-
-    typedef void (*kernel_fn_t)(bootinfo_t);
-    kernel_fn_t __attribute__((sysv_abi)) kernel_main =
-        (kernel_fn_t __attribute__((sysv_abi)))(uintptr_t)entrypoint;
-
-    PSF1_FONT* font = LoadPSF1Font(NULL,u"zap-light16.psf",ImageHandle,ST);
 
     bootinfo_t info = {0};
     info.mMap           = Map;

@@ -8,11 +8,14 @@ PHDRS
     rodata PT_LOAD FLAGS(4);
 }
 
+
+
 SECTIONS
 {
-    . = 0;
+    /* Start at fixed address 0x100000 */
+    . = 0x100000;
 
-    .text :
+    .text : 
     {
         *(.text*)
     } :text
@@ -36,12 +39,12 @@ SECTIONS
         __fini_array_end = .;
     } :data
 
-    .data :
+    .data : 
     {
         *(.data*)
     } :data
 
-    .bss :
+    .bss : 
     {
         *(.bss*)
         *(COMMON)
