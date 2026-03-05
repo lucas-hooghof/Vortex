@@ -1,7 +1,11 @@
-#include "generic/constructers.h"
+#include <generic/constructers.h>
 
-extern "C" int kernel_main()
+#include <generic/bootinfo.h>
+#include <generic/stdio.h>
+
+extern "C" void kernel_main(bootinfo_t info)
 {
     call_constructers();
-    return 123;
+    Initilize(info);
+    while(1) {}
 }

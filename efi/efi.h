@@ -393,6 +393,16 @@ typedef struct {
     EFI_HANDLE    CreateEventEx;  // UEFI 2.0+
   } EFI_BOOT_SERVICES;
 
+#define SMBIOS_TABLE_GUID \
+  {0xeb9d2d31,0x2d88,0x11d3,\
+   0x9a,0x16,{0x00,0x90,0x27,0x3f,0xc1,0x4d}}
+
+  typedef struct{
+  EFI_GUID           VendorGuid;
+  VOID               *VendorTable;
+}   EFI_CONFIGURATION_TABLE;
+
+
 typedef struct {
   EFI_TABLE_HEADER                 Hdr;
   CHAR16                           *FirmwareVendor;
@@ -406,7 +416,7 @@ typedef struct {
   EFI_HANDLE                       *RuntimeServices;
   EFI_BOOT_SERVICES                *BootServices;
   UINTN                            NumberOfTableEntries;
-  VOID*                            *ConfigurationTable;
+  EFI_CONFIGURATION_TABLE          *ConfigurationTable;
 } EFI_SYSTEM_TABLE;
 
 #define EFI_BLOCK_IO_PROTOCOL_GUID \
@@ -591,3 +601,232 @@ typedef struct {
    EFI_PARTITION_ENTRY Gpt;
   } Info;
 }__attribute__((packed)) EFI_PARTITION_INFO_PROTOCOL;
+
+#define EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID \
+ {0x9042a9de,0x23dc,0x4a38,\
+  0x96,0xfb,{0x7a,0xde,0xd0,0x80,0x51,0x6a}}
+
+typedef struct _EFI_GRAPHICS_OUTPUT_PROTOCOL EFI_GRAPHICS_OUTPUT_PROTOCOL;
+
+typedef struct {
+  UINT32              RedMask;
+  UINT32              GreenMask;
+  UINT32              BlueMask;
+  UINT32              ReservedMask;
+ } EFI_PIXEL_BITMASK;
+
+typedef enum {
+  PixelRedGreenBlueReserved8BitPerColor,
+  PixelBlueGreenRedReserved8BitPerColor,
+  PixelBitMask,
+  PixelBltOnly,
+  PixelFormatMax
+} EFI_GRAPHICS_PIXEL_FORMAT;
+
+typedef struct {
+ UINT32                    Version;
+ UINT32                    HorizontalResolution;
+ UINT32                    VerticalResolution;
+ EFI_GRAPHICS_PIXEL_FORMAT PixelFormat;
+ EFI_PIXEL_BITMASK         PixelInformation;
+ UINT32                    PixelsPerScanLine;
+} EFI_GRAPHICS_OUTPUT_MODE_INFORMATION;
+
+typedef struct {
+  UINT32                                    MaxMode;
+  UINT32                                    Mode;
+  EFI_GRAPHICS_OUTPUT_MODE_INFORMATION      *Info;
+  UINTN                                      SizeOfInfo;
+  EFI_PHYSICAL_ADDRESS                      FrameBufferBase;
+  UINTN                                     FrameBufferSize;
+} EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE;
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_GRAPHICS_OUTPUT_PROTOCOL_QUERY_MODE) (
+ IN EFI_GRAPHICS_OUTPUT_PROTOCOL              *This,
+ IN UINT32                                    ModeNumber,
+ OUT UINTN                                    *SizeOfInfo,
+ OUT EFI_GRAPHICS_OUTPUT_MODE_INFORMATION     **Info
+ );
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_GRAPHICS_OUTPUT_PROTOCOL_SET_MODE) (
+ IN EFI_GRAPHICS_OUTPUT_PROTOCOL                *This,
+ IN UINT32                                      ModeNumber
+ );
+
+typedef struct {
+ UINT8                        Blue;
+ UINT8                        Green;
+ UINT8                        Red;
+ UINT8                        Reserved;
+} EFI_GRAPHICS_OUTPUT_BLT_PIXEL;
+
+typedef enum {
+ EfiBltVideoFill,
+ EfiBltVideoToBltBuffer,
+ EfiBltBufferToVideo,
+ EfiBltVideoToVideo,
+ EfiGraphicsOutputBltOperationMax
+} EFI_GRAPHICS_OUTPUT_BLT_OPERATION;
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_GRAPHICS_OUTPUT_PROTOCOL_BLT) (
+ IN EFI_GRAPHICS_OUTPUT_PROTOCOL                 *This,
+ IN OUT EFI_GRAPHICS_OUTPUT_BLT_PIXEL            *BltBuffer, OPTIONAL
+ IN EFI_GRAPHICS_OUTPUT_BLT_OPERATION            BltOperation,
+ IN UINTN                                        SourceX,
+ IN UINTN                                        SourceY,
+ IN UINTN                                        DestinationX,
+ IN UINTN                                        DestinationY,
+ IN UINTN                                        Width,
+ IN UINTN                                        Height,
+ IN UINTN                                        Delta OPTIONAL
+ );
+
+typedef struct _EFI_GRAPHICS_OUTPUT_PROTOCOL {
+ EFI_GRAPHICS_OUTPUT_PROTOCOL_QUERY_MODE     QueryMode;
+ EFI_GRAPHICS_OUTPUT_PROTOCOL_SET_MODE       SetMode;
+ EFI_GRAPHICS_OUTPUT_PROTOCOL_BLT            Blt;
+ EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE           *Mode;
+} EFI_GRAPHICS_OUTPUT_PROTOCOL;
+
+
+#define EFI_FILE_PROTOCOL_REVISION           0x00010000
+#define EFI_FILE_PROTOCOL_REVISION2          0x00020000
+#define EFI_FILE_PROTOCOL_LATEST_REVISION EFI_FILE_PROTOCOL_REVISION2
+
+typedef struct _EFI_FILE_PROTOCOL EFI_FILE_PROTOCOL;
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_OPEN) (
+  IN EFI_FILE_PROTOCOL                  *This,
+  OUT EFI_FILE_PROTOCOL                 **NewHandle,
+  IN CHAR16                             *FileName,
+  IN UINT64                             OpenMode,
+  IN UINT64                             Attributes
+  );
+
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_CLOSE) (
+  IN EFI_FILE_PROTOCOL                     *This
+  );
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_DELETE) (
+  IN EFI_FILE_PROTOCOL                     *This
+  );
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_READ) (
+  IN EFI_FILE_PROTOCOL           *This,
+  IN OUT UINTN                   *BufferSize,
+  OUT VOID                       *Buffer
+  );
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_WRITE) (
+  IN EFI_FILE_PROTOCOL              *This,
+  IN OUT UINTN                      *BufferSize,
+  IN VOID                           *Buffer
+  );
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_FLUSH) (
+  IN EFI_FILE_PROTOCOL             *This
+  );
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_GET_INFO) (
+  IN EFI_FILE_PROTOCOL             *This,
+  IN EFI_GUID                      *InformationType,
+  IN OUT UINTN                     *BufferSize,
+  OUT VOID                         *Buffer
+  );
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_SET_INFO) (
+  IN EFI_FILE_PROTOCOL                *This,
+  IN EFI_GUID                         *InformationType,
+  IN UINTN                            BufferSize,
+  IN VOID                             *Buffer
+  );
+
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_SET_POSITION) (
+   IN EFI_FILE_PROTOCOL      *This,
+   IN UINT64                 Position
+   );
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_GET_POSITION) (
+  IN EFI_FILE_PROTOCOL                *This,
+  OUT UINT64                          *Position
+  );
+
+typedef struct _EFI_FILE_PROTOCOL {
+  UINT64                          Revision;
+  EFI_FILE_OPEN                   Open;
+  EFI_FILE_CLOSE                  Close;
+  EFI_FILE_DELETE                 Delete;
+  EFI_FILE_READ                   Read;
+  EFI_FILE_WRITE                  Write;
+  EFI_FILE_GET_POSITION           GetPosition;
+  EFI_FILE_SET_POSITION           SetPosition;
+  EFI_FILE_GET_INFO               GetInfo;
+  EFI_FILE_SET_INFO               SetInfo;
+  EFI_FILE_FLUSH                  Flush;
+  EFI_HANDLE                OpenEx; // Added for revision 2
+  EFI_HANDLE                ReadEx; // Added for revision 2
+  EFI_HANDLE               WriteEx; // Added for revision 2
+  EFI_HANDLE               FlushEx; // Added for revision 2
+} EFI_FILE;
+
+
+
+#define EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID \
+ {0x0964e5b22,0x6459,0x11d2,\
+  0x8e,0x39,{0x00,0xa0,0xc9,0x69,0x72,0x3b}}
+
+#define EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_REVISION 0x00010000
+
+
+typedef struct _EFI_SIMPLE_FILE_SYSTEM_PROTOCOL EFI_SIMPLE_FILE_SYSTEM_PROTOCOL;
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_OPEN_VOLUME) (
+  IN EFI_SIMPLE_FILE_SYSTEM_PROTOCOL                   *This,
+  OUT EFI_FILE_PROTOCOL                                **Root
+  );
+
+typedef struct _EFI_SIMPLE_FILE_SYSTEM_PROTOCOL {
+ UINT64                                         Revision;
+ EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_OPEN_VOLUME    OpenVolume;
+} EFI_SIMPLE_FILE_SYSTEM_PROTOCOL;
+
+
+#define EFI_FILE_MODE_READ       0x0000000000000001
+#define EFI_FILE_MODE_WRITE      0x0000000000000002
+#define EFI_FILE_MODE_CREATE     0x8000000000000000
+
+
+#define EFI_FILE_READ_ONLY       0x0000000000000001
+#define EFI_FILE_HIDDEN          0x0000000000000002
+#define EFI_FILE_SYSTEM          0x0000000000000004
+#define EFI_FILE_RESERVED        0x0000000000000008
+#define EFI_FILE_DIRECTORY       0x0000000000000010
+#define EFI_FILE_ARCHIVE         0x0000000000000020
+#define EFI_FILE_VALID_ATTR      0x0000000000000037

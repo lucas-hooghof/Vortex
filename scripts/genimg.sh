@@ -3,6 +3,7 @@
 # --- CONFIGURATION ---
 FILENAME="$1"
 EFI_FILE="$2"       # File to put in EFI/BOOT
+FONT_FILE="$3"
 BLOCKS=1000000        # Number of 512-byte blocks
 ESP_SIZE_MB=100     # Size of EFI System Partition
 ROOT_GUID="a5e8bf06-1238-11f1-b74b-00155d0f3cbb" # Replace with your GUID
@@ -53,6 +54,7 @@ MNTDIR=$(mktemp -d)
 sudo mount "${LOOPDEV}p1" "$MNTDIR"
 sudo mkdir -p "$MNTDIR/EFI/BOOT"
 sudo cp "$EFI_FILE" "$MNTDIR/EFI/BOOT/"
+sudo cp "$FONT_FILE" "$MNTDIR"
 echo "Copied EFI file to $MNTDIR/EFI/BOOT/"
 sudo umount "$MNTDIR"
 rmdir "$MNTDIR"

@@ -1,1 +1,2 @@
-https://uefi.org/specs/UEFI/2.11/index.html
+UEFI Spec -> https://uefi.org/specs/UEFI/2.11/index.html 
+C Headers -> https://en.cppreference.com/w/c/header.html

@@ -9,6 +9,20 @@
 
 #define BIT(x) (1 << x)
 
+#define PSF1_MAGIC0 0x36
+#define PSF1_MAGIC1 0x04
+
+typedef struct {
+	unsigned char magic[2];
+	unsigned char mode;
+	unsigned char charsize;
+} PSF1_HEADER;
+
+typedef struct {
+	PSF1_HEADER* psf1_Header;
+	void* glyphBuffer;
+} PSF1_FONT;
+
 typedef struct 
 {
     char Header[4];
@@ -19,7 +33,6 @@ typedef struct
     uint32_t InodeTableSize;
     uint8_t InodeTables;
 
-
     uint32_t ExtentSize;
     uint32_t ExtentTableSize;
     uint32_t ExtentTables;
@@ -28,7 +41,6 @@ typedef struct
     uint16_t NextInodeID;
     uint16_t NextExtentTableID;
     uint16_t NextInodeTableID;
-
 
     uint64_t FreeInodes;
     uint64_t NextFreeInode;
@@ -50,7 +62,7 @@ typedef struct
 
     uint8_t padding[BLOCK_SIZE-135];
 
-}__attribute__((packed))VXFS_SUPERBLOCK;
+} __attribute__((packed)) VXFS_SUPERBLOCK;
 
 typedef struct
 {
@@ -80,7 +92,7 @@ typedef struct
     uint8_t free;
     uint64_t SizeInBytes;
     uint16_t NextFreeByte;
-}__attribute((packed))VXFS_INODE;
+} __attribute((packed)) VXFS_INODE;
 
 typedef struct
 {
@@ -89,538 +101,647 @@ typedef struct
     uint8_t valid;
     uint8_t paddign;
     uint16_t NameLenght;
-}__attribute((packed))VXFS_DIRENTRY;
+} __attribute((packed)) VXFS_DIRENTRY;
 
 typedef enum
 {
-    DIR = BIT(0),
-    SYSTEM = BIT(1),
-    SYSLINK = BIT(2),
+    DIR      = BIT(0),
+    SYSTEM   = BIT(1),
+    SYSLINK  = BIT(2),
     HARDLINK = BIT(3)
-}VXFS_FLAGS;
+} VXFS_FLAGS;
+
+#define EI_NIDENT 16
+
+typedef struct {
+    unsigned char e_ident[EI_NIDENT];
+    uint16_t e_type;
+    uint16_t e_machine;
+    uint32_t e_version;
+    uint64_t e_entry;
+    uint64_t e_phoff;
+    uint64_t e_shoff;
+    uint32_t e_flags;
+    uint16_t e_ehsize;
+    uint16_t e_phentsize;
+    uint16_t e_phnum;
+    uint16_t e_shentsize;
+    uint16_t e_shnum;
+    uint16_t e_shstrndx;
+} Elf64_Ehdr;
+
+typedef struct {
+    uint32_t p_type;
+    uint32_t p_flags;
+    uint64_t p_offset;
+    uint64_t p_vaddr;
+    uint64_t p_paddr;
+    uint64_t p_filesz;
+    uint64_t p_memsz;
+    uint64_t p_align;
+} Elf64_Phdr;
+
+typedef struct {
+    void*        BaseAddress;
+    size_t       BufferSize;
+    unsigned int Width;
+    unsigned int Height;
+    unsigned int PixelsPerScanLine;
+} Framebuffer;
+
+typedef struct 
+{
+    EFI_MEMORY_DESCRIPTOR* mMap;
+    UINTN MapSize;
+    UINTN DescriptorSize;
+    Framebuffer framebuffer;
+
+    PSF1_FONT* bootfont;
+} bootinfo_t;
+
+typedef struct {
+    UINT8  Type;
+    UINT8  Length;
+    UINT16 Handle;
+} SMBIOS_HEADER;
+
+typedef struct {
+    SMBIOS_HEADER Hdr;
+    UINT8  Manufacturer;
+    UINT8  ProductName;
+    UINT8  Version;
+    UINT8  SerialNumber;
+    UINT8  UUID[16];
+    UINT8  WakeUpType;
+    UINT8  SKUNumber;
+    UINT8  Family;
+} SMBIOS_TYPE1;
+
+#define ET_DYN    3
+#define PT_LOAD   1
+#define PAGE_SIZE 4096
 
 #define VXFS_ROOT_GUID \
- {0xa5e8bf06, 0x1238, 0x11f1, 0xb7, 0x4b, {0x00, 0x15, 0x5d, 0x0f, 0x3c, 0xbb}}
+    {0xa5e8bf06, 0x1238, 0x11f1, 0xb7, 0x4b, {0x00, 0x15, 0x5d, 0x0f, 0x3c, 0xbb}}
+
+typedef struct {
+    EFI_BLOCK_IO_PROTOCOL* bio;
+    UINTN                  PartitionStartLBA;
+} VxfsScanResult;
+
+
 
 EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* cout;
 
-void* memset(void* dest,uint8_t c,size_t n)
+void* memset(void* dest, uint8_t c, size_t n)
 {
-    uint8_t* dest8 = (uint8_t*)dest;
-    for (size_t i = 0; i < n; i++)
-    {
-        dest8[i] = c;
-    }
-    
+    uint8_t* d = (uint8_t*)dest;
+    for (size_t i = 0; i < n; i++) d[i] = c;
     return dest;
 }
 
-INTN memcmp(VOID *m1, VOID *m2, UINTN len) {
-    UINT8 *p = m1;
-    UINT8 *q = m2;
+INTN memcmp(VOID* m1, VOID* m2, UINTN len)
+{
+    UINT8 *p = m1, *q = m2;
     for (UINTN i = 0; i < len; i++)
-        if (p[i] != q[i]) return (INTN)(p[i]) - (INTN)(q[i]);
-
+        if (p[i] != q[i]) return (INTN)p[i] - (INTN)q[i];
     return 0;
 }
 
-
-UINTN strlen_c16(CHAR16 *s) {
-    UINTN len = 0;
-    while (*s++) len++;
-    return len;
+VOID* memcpy(VOID* dst, VOID* src, UINTN len)
+{
+    UINT8 *p = dst, *q = src;
+    while (len--) *p++ = *q++;
+    return dst;
 }
 
-UINTN strlen(CHAR8 *s) {
-    UINTN len = 0;
-    while (*s++) len++;
-    return len;
-}
+UINTN strlen_c16(CHAR16* s) { UINTN n = 0; while (*s++) n++; return n; }
+UINTN strlen(CHAR8* s)      { UINTN n = 0; while (*s++) n++; return n; }
 
-CHAR16 *strrev_c16(CHAR16 *s) {
-    if (!s) return s;
-
-    CHAR16 *start = s, *end = s + strlen_c16(s)-1;
-    while (start < end) {
-        CHAR16 temp = *end;  // Swap
-        *end-- = *start;
-        *start++ = temp;
+CHAR8* AsciiStrStr(const CHAR8* haystack, const CHAR8* needle)
+{
+    if (!*needle) return (CHAR8*)haystack;
+    for (; *haystack; haystack++) {
+        const CHAR8 *h = haystack, *n = needle;
+        while (*h && *n && (*h == *n)) { h++; n++; }
+        if (!*n) return (CHAR8*)haystack;
     }
+    return NULL;
+}
 
+CHAR16* strrev_c16(CHAR16* s)
+{
+    if (!s) return s;
+    CHAR16 *start = s, *end = s + strlen_c16(s) - 1;
+    while (start < end) { CHAR16 t = *end; *end-- = *start; *start++ = t; }
     return s;
 }
 
-CHAR16 buffer[24];
-CHAR16* itoa(UINTN number,UINT8 base)
+CHAR16 _itoa_buf[24];
+CHAR16* itoa(UINTN number, UINT8 base)
 {
-    memset(buffer,0,24);
-    const CHAR16 *digits = u"0123456789ABCDEF";
-
+    memset(_itoa_buf, 0, 24);
+    const CHAR16* digits = u"0123456789ABCDEF";
     int i = 0;
+    do { _itoa_buf[i++] = digits[number % base]; number /= base; } while (number > 0);
+    if (base == 16) { _itoa_buf[i++] = u'x'; _itoa_buf[i++] = u'0'; }
+    strrev_c16(_itoa_buf);
+    return _itoa_buf;
+}
 
-    do 
-    {
-        buffer[i++] = digits[number % base];
-        number /= base;
-    } while (number > 0);
+VOID print_bool(BOOLEAN b)  { cout->OutputString(cout, b ? u"Y" : u"N"); }
+VOID print_uint(UINTN val)  { cout->OutputString(cout, itoa(val, 10)); }
+VOID print_str(CHAR16* s)   { cout->OutputString(cout, s); }
+VOID print_nl(VOID)         { cout->OutputString(cout, u"\r\n"); }
 
-    if (base == 16)
-    {
-        buffer[i++] = u'x';
-        buffer[i++] = u'0';
+VOID PrintHex(UINT64 value)
+{
+    CHAR16 buf[17]; buf[16] = 0;
+    for (int i = 15; i >= 0; i--) {
+        UINTN d = value & 0xF;
+        buf[i] = (d < 10) ? (u'0' + d) : (u'A' + d - 10);
+        value >>= 4;
     }
-
-    strrev_c16(buffer);
-
-    return buffer;
+    cout->OutputString(cout, buf);
 }
 
-VOID print_bool(BOOLEAN b) {
-    cout->OutputString(cout, b ? u"Y" : u"N");
-}
-
-VOID print_uint(UINTN val) {
-    cout->OutputString(cout, itoa(val, 10));
-}
-
-VOID print_hex_dump(VOID *data, UINTN len) {
-    UINT8 *bytes = (UINT8*)data;
+VOID print_hex_dump(VOID* data, UINTN len)
+{
+    UINT8* bytes = (UINT8*)data;
     for (UINTN i = 0; i < len; i++) {
-        // Print offset at the start of each row
-        if (i % 16 == 0) {
-            cout->OutputString(cout, itoa(i, 16));
-            cout->OutputString(cout, u"  ");
-        }
-
-        // Pad single digit hex values with a leading zero
-        if (bytes[i] < 0x10)
-            cout->OutputString(cout, u"0");
-
+        if (i % 16 == 0) { cout->OutputString(cout, itoa(i, 16)); cout->OutputString(cout, u"  "); }
+        if (bytes[i] < 0x10) cout->OutputString(cout, u"0");
         cout->OutputString(cout, itoa(bytes[i], 16));
         cout->OutputString(cout, u" ");
-
-        // Newline + ASCII column at end of each row
         if (i % 16 == 15 || i == len - 1) {
-            // Pad incomplete last row so ASCII column lines up
             UINTN col = i % 16;
-            if (col != 15) {
-                for (UINTN pad = col + 1; pad < 16; pad++)
-                    cout->OutputString(cout, u"   ");
-            }
-
+            if (col != 15) for (UINTN pad = col + 1; pad < 16; pad++) cout->OutputString(cout, u"   ");
             cout->OutputString(cout, u" |");
-
-            // ASCII column - print dot for non-printable chars
             UINTN row_start = i - (i % 16);
             for (UINTN j = row_start; j <= i; j++) {
                 CHAR16 ch[2] = { (bytes[j] >= 0x20 && bytes[j] < 0x7F) ? (CHAR16)bytes[j] : u'.', 0 };
                 cout->OutputString(cout, ch);
             }
-
             cout->OutputString(cout, u"|\r\n");
         }
     }
 }
 
-EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* Systemtable)
+BOOLEAN CompareGuid(EFI_GUID* a, EFI_GUID* b)
 {
+    return (a->TimeLow == b->TimeLow) &&
+           (a->TimeMid == b->TimeMid) &&
+           (a->TimeHighAndVersion == b->TimeHighAndVersion) &&
+           (a->ClockSeqHighAndReserved == b->ClockSeqHighAndReserved) &&
+           (a->ClockSeqLow == b->ClockSeqLow) &&
+           (memcmp(a->Node, b->Node, 6) == 0);
+}
 
-    cout = Systemtable->ConOut;
-    cout->ClearScreen(cout);
-    EFI_STATUS status = EFI_SUCCESS;
-
-    //Locate Block IO handles
-    EFI_GUID BlockIOGuid = EFI_BLOCK_IO_PROTOCOL_GUID;
-    UINTN HandleCount = 0;
-    EFI_HANDLE* HandleBuffer = NULL;
-    status = Systemtable->BootServices->LocateHandleBuffer(ByProtocol,&BlockIOGuid,NULL,&HandleCount,&HandleBuffer);
-    if (status != EFI_SUCCESS)
-    {
-        cout->OutputString(cout,u"Failed dih");
+static VOID* AllocZero(EFI_BOOT_SERVICES* bs, UINTN size)
+{
+    VOID* ptr = NULL;
+    if (EFI_ERROR(bs->AllocatePool(EfiLoaderData, size, &ptr)) || !ptr) {
+        cout->OutputString(cout, u"AllocatePool failed\r\n");
+        while (1) {}
     }
+    memset(ptr, 0, size);
+    return ptr;
+}
+
+static VOID ReadSectors(EFI_BLOCK_IO_PROTOCOL* bio, UINTN lba, UINTN bytes, VOID* buf)
+{
+    EFI_STATUS s = bio->ReadBlocks(bio, bio->Media->MediaId, lba, bytes, buf);
+    if (EFI_ERROR(s)) {
+        cout->OutputString(cout, u"ReadBlocks failed: ");
+        cout->OutputString(cout, itoa(s, 16));
+        cout->OutputString(cout, u"\r\n");
+        while (1) {}
+    }
+}
 
 
+static VxfsScanResult FindVxfsPartition(
+    EFI_SYSTEM_TABLE* ST,
+    EFI_HANDLE        ImageHandle,
+    EFI_HANDLE*       HandleBuffer,
+    UINTN             HandleCount)
+{
+    EFI_GUID BlockIOGuid       = EFI_BLOCK_IO_PROTOCOL_GUID;
     EFI_GUID PartitionInfoGuid = EFI_PARTITION_INFO_PROTOCOL_GUID;
-    EFI_GUID VxfsRootGuid = VXFS_ROOT_GUID;
+    EFI_GUID VxfsRootGuid      = VXFS_ROOT_GUID;
 
-    EFI_BLOCK_IO_PROTOCOL* VxfsBlockIO = NULL;  // Will point to the VxFS partition when found
+    for (UINTN i = 0; i < HandleCount; i++) {
+        EFI_BLOCK_IO_PROTOCOL* bio = NULL;
+        if (EFI_ERROR(ST->BootServices->OpenProtocol(
+                HandleBuffer[i], &BlockIOGuid, (VOID**)&bio,
+                ImageHandle, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL))
+            || !bio || !bio->Media) continue;
 
-    EFI_BLOCK_IO_PROTOCOL* blockio;
-    for (UINTN index = 0; index < HandleCount; index++) {
+        if (bio->Media->LogicalPartition)
+        {
+            print_str(u"Found Partition\n\r");
+            print_uint(bio->Media->BlockSize);
+            print_nl();
+            print_uint(bio->Media->LastBlock);
+            print_nl();
+            print_uint(bio->Media->LastBlock * bio->Media->BlockSize);
+            print_nl();
+            print_bool(bio->Media->RemovableMedia);
+            print_nl();
 
-        status = Systemtable->BootServices->OpenProtocol(
-            HandleBuffer[index],
-            &BlockIOGuid,
-            (VOID**)&blockio,
-            ImageHandle,
-            NULL,
-            EFI_OPEN_PROTOCOL_GET_PROTOCOL
-        );
+            VOID* sector = AllocZero(ST->BootServices,512);
 
-        if (EFI_ERROR(status) || !blockio || !blockio->Media) {
-            cout->OutputString(cout, u"  Invalid BlockIO\r\n");
-            continue;
-        }
+            ReadSectors(bio,0,512,sector);
 
-        // --- Partition Info ---
-        EFI_PARTITION_INFO_PROTOCOL *partInfo = NULL;
-        status = Systemtable->BootServices->OpenProtocol(
-            HandleBuffer[index],
-            &PartitionInfoGuid,
-            (VOID**)&partInfo,
-            ImageHandle,
-            NULL,
-            EFI_OPEN_PROTOCOL_GET_PROTOCOL
-        );
-
-        if (EFI_ERROR(status) || !partInfo) {
-
-            continue;
-        }
-
-        if (partInfo->Type == PARTITION_TYPE_GPT) {
-
-            // Check if this is the VxFS root partition
-            if (memcmp(&partInfo->Info.Gpt.PartitionTypeGUID, &VxfsRootGuid, sizeof(EFI_GUID)) == 0) {
-                cout->OutputString(cout, u"  *** VxFS ROOT PARTITION FOUND ***\r\n");
-                VxfsBlockIO = blockio;
+            if (!memcmp(sector,VXFS_HEADER,4))
+            {
+                VxfsScanResult r = {bio,0};
+                return r;
             }
+        }
 
+        EFI_PARTITION_INFO_PROTOCOL* partInfo = NULL;
+        if (EFI_ERROR(ST->BootServices->OpenProtocol(
+                HandleBuffer[i], &PartitionInfoGuid, (VOID**)&partInfo,
+                ImageHandle, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL))
+            || !partInfo) continue;
+
+        if (partInfo->Type == PARTITION_TYPE_GPT &&
+            memcmp(&partInfo->Info.Gpt.PartitionTypeGUID, &VxfsRootGuid, sizeof(EFI_GUID)) == 0) {
+            cout->OutputString(cout, u"*** VxFS ROOT PARTITION FOUND via GPT ***\r\n");
+            VxfsScanResult r = { bio, 0 };
+            return r;
         }
     }
 
-    if (VxfsBlockIO) {
-        VXFS_SUPERBLOCK *superblock = NULL;
-        UINTN BlockIOPartitionOffset = 0;
-        UINTN CurrentLBA = 0;
-        status = Systemtable->BootServices->AllocatePool(EfiLoaderData, sizeof(VXFS_SUPERBLOCK), (VOID**)&superblock);
-        if (EFI_ERROR(status) || !superblock) {
-            cout->OutputString(cout, u"AllocatePool failed\r\n");
-            return status;
-        }
-        memset(superblock, 0, sizeof(VXFS_SUPERBLOCK));
+    VxfsScanResult empty = { NULL, 0 };
+    return empty;
+}
 
-        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO, VxfsBlockIO->Media->MediaId, CurrentLBA, sizeof(VXFS_SUPERBLOCK), (VOID*)superblock);
-        BlockIOPartitionOffset += sizeof(VXFS_SUPERBLOCK);
-        CurrentLBA++;
-        if (EFI_ERROR(status)) {
-            cout->OutputString(cout, u"ReadBlocks failed: ");
-            cout->OutputString(cout, itoa(status, 16));
-            cout->OutputString(cout, u"\r\n");
+static VXFS_SUPERBLOCK* LoadSuperblock(EFI_BOOT_SERVICES* bs, EFI_BLOCK_IO_PROTOCOL* bio, UINTN partStartLBA)
+{
+    VXFS_SUPERBLOCK* sb = AllocZero(bs, sizeof(VXFS_SUPERBLOCK));
+    ReadSectors(bio, partStartLBA, sizeof(VXFS_SUPERBLOCK), sb);
 
-            return status;
-        }
-        if (memcmp(superblock->Header,VXFS_HEADER,4))
-        {
-            cout->OutputString(cout,u"Couldn't find superblock header");
-            Systemtable->BootServices->FreePool(superblock);
-            return EFI_NOT_FOUND;
-        }
+    if (memcmp(sb->Header, VXFS_HEADER, 4)) {
+        cout->OutputString(cout, u"Couldn't find superblock header\r\n");
+        bs->FreePool(sb);
+        while (1) {}
+    }
+    return sb;
+}
 
-        CurrentLBA = superblock->InodeTablesStart  + (sizeof(VXFS_INODE) * superblock->RootInodeID) / 512;
-        VXFS_INODE* inodetable = NULL;
-        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,512,(VOID**)&inodetable);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout,u"AllocatePool failed");
+static VXFS_INODE ReadInode(
+    EFI_BOOT_SERVICES*     bs,
+    EFI_BLOCK_IO_PROTOCOL* bio,
+    VXFS_SUPERBLOCK*       sb,
+    UINTN                  partStartLBA,
+    uint16_t               tableID,
+    uint16_t               inodeID)
+{
+    UINTN lba = partStartLBA
+              + sb->InodeTablesStart
+              + sb->InodeTableSize * tableID
+              + inodeID * sizeof(VXFS_INODE) / BLOCK_SIZE;
 
-            return status;
-        }
-        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,512,(VOID*)inodetable);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout, u"ReadBlocks failed: ");
-            cout->OutputString(cout, itoa(status, 16));
-            cout->OutputString(cout, u"\r\n");
+    VXFS_INODE* buf = AllocZero(bs, BLOCK_SIZE);
+    ReadSectors(bio, lba, BLOCK_SIZE, buf);
 
-            return status;
-        }
-        VXFS_INODE rootinode = inodetable[superblock->RootInodeID];
-        cout->OutputString(cout,u"Rootnode extent ID: ");
-        cout->OutputString(cout,itoa(rootinode.ExtentID,10));
-        cout->OutputString(cout,u"\r\n");
+    VXFS_INODE node = {0};
+    for (UINTN i = 0; i < BLOCK_SIZE / sizeof(VXFS_INODE); i++) {
+        if (buf[i].InodeID == inodeID) { node = buf[i]; break; }
+    }
+    bs->FreePool(buf);
+    return node;
+}
 
-        VXFS_EXTENT rootextent = {0};
-        CurrentLBA = superblock->ExtentTableStart;
-        VXFS_EXTENT* extents = NULL;
-        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,512,(VOID**)&extents);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout,u"AllocatePool failed");
+static VXFS_EXTENT ReadExtent(
+    EFI_BOOT_SERVICES*     bs,
+    EFI_BLOCK_IO_PROTOCOL* bio,
+    VXFS_SUPERBLOCK*       sb,
+    UINTN                  partStartLBA,
+    uint16_t               tableID,
+    uint16_t               extentID)
+{
+    UINTN lba = partStartLBA
+              + sb->ExtentTableStart
+              + sb->ExtentTableSize * tableID
+              + extentID * sizeof(VXFS_EXTENT) / BLOCK_SIZE;
 
-            return status;
-        }
-        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,512,(VOID*)extents);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout, u"ReadBlocks failed: ");
-            cout->OutputString(cout, itoa(status, 16));
-            cout->OutputString(cout, u"\r\n");
+    VXFS_EXTENT* buf = AllocZero(bs, BLOCK_SIZE);
+    ReadSectors(bio, lba, BLOCK_SIZE, buf);
 
-            return status;
-        }
+    VXFS_EXTENT ext = {0};
+    for (UINTN i = 0; i < BLOCK_SIZE / sizeof(VXFS_EXTENT); i++) {
+        if (buf[i].ExtentID == extentID) { ext = buf[i]; break; }
+    }
+    bs->FreePool(buf);
+    return ext;
+}
 
-        rootextent = extents[rootinode.ExtentID];
-        cout->OutputString(cout,u"Root Dir: ");
-        print_uint(rootextent.StartSector);
-        cout->OutputString(cout,u"\r\n");
-        cout->OutputString(cout,u"Root Dir Size: ");
-        print_uint(rootextent.SizeInSectors);
-        cout->OutputString(cout,u"\r\n");
+static VOID* ReadExtentData(
+    EFI_BOOT_SERVICES*     bs,
+    EFI_BLOCK_IO_PROTOCOL* bio,
+    VXFS_EXTENT*           ext,
+    UINTN                  partStartLBA)
+{
+    UINTN bytes = ext->SizeInSectors * BLOCK_SIZE;
+    VOID* buf   = AllocZero(bs, bytes);
+    ReadSectors(bio, partStartLBA + ext->StartSector, bytes, buf);
+    return buf;
+}
 
-        VOID* direntries = NULL;
-        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,rootextent.SizeInSectors * BLOCK_SIZE,(VOID**)&direntries);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout,u"AllocatePool failed");
+static VXFS_DIRENTRY* FindDirEntry(VOID* dirdata, const CHAR8* name)
+{
+    UINTN name_len = strlen((CHAR8*)name);
+    UINTN ptr = 0;
+    while (1) {
+        VXFS_DIRENTRY* e = (VXFS_DIRENTRY*)((UINTN)dirdata + ptr);
+        ptr += sizeof(VXFS_DIRENTRY);
+        if (e->NameLenght == 0 || e->valid != 1) break;
+        if (strlen((CHAR8*)name) == e->NameLenght && name_len == e->NameLenght) return e;
+        ptr += e->NameLenght;
+    }
+    return NULL;
+}
 
-            return status;
-        }
-        CurrentLBA = rootextent.StartSector;
-        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,rootextent.SizeInSectors * BLOCK_SIZE,(VOID*)direntries);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout, u"ReadBlocks failed: ");
-            cout->OutputString(cout, itoa(status, 16));
-            cout->OutputString(cout, u"\r\n");
+static VXFS_EXTENT InodeToExtent(
+    EFI_BOOT_SERVICES*     bs,
+    EFI_BLOCK_IO_PROTOCOL* bio,
+    VXFS_SUPERBLOCK*       sb,
+    UINTN                  partStartLBA,
+    VXFS_INODE*            node)
+{
+    return ReadExtent(bs, bio, sb, partStartLBA, node->ExtentTableID, node->ExtentID);
+}
 
-            return status;
-        }
-        UINTN ptr = 0;
-        VXFS_DIRENTRY* entry = NULL;
-        while (1)
-        {
-            VXFS_DIRENTRY* direntry = (VXFS_DIRENTRY*)((UINTN)(direntries) + ptr);
-            ptr += sizeof(VXFS_DIRENTRY);
-            if (direntry->NameLenght == 0 || direntry->valid != 1) break;
-            if (strlen("system") == direntry->NameLenght) {
-                cout->OutputString(cout,u"Found system dir\r\n");
-                entry = direntry;
-                break;
-            }
-            ptr += direntry->NameLenght;
-        }
+static VOID* LoadElf(EFI_BOOT_SERVICES* bs, VOID* kernel)
+{
+    Elf64_Ehdr* ehdr = (Elf64_Ehdr*)kernel;
 
-        if (entry == NULL)
-        {
-            cout->OutputString(cout,u"Failed to find system directory filesystem may be corrupt");
-            //Maybe add recovery here
-            return EFI_NOT_FOUND;
-        }
-
-        CurrentLBA = superblock->InodeTablesStart + superblock->InodeTableSize * entry->InodeTableID  + entry->InodeID * sizeof(VXFS_INODE) / BLOCK_SIZE;
-        VXFS_INODE* inodetables = NULL;
-        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,BLOCK_SIZE,(VOID**)&inodetables);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout,u"AllocatePool failed");
-
-            return status;
-        }
-        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,512,(VOID*)inodetables);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout, u"ReadBlocks failed: ");
-            cout->OutputString(cout, itoa(status, 16));
-            cout->OutputString(cout, u"\r\n");
-
-            return status;
-        }
-        VXFS_INODE node = {0};
-        for (UINTN i = 0; i < BLOCK_SIZE / sizeof(VXFS_INODE); i++)
-        {
-            if (inodetables[i].InodeID == entry->InodeID)
-            {
-                node = inodetables[i];
-                cout->OutputString(cout,u"Found system inode\r\n");
-                break;
-            }
-        }
-
-        CurrentLBA = superblock->ExtentTableStart + superblock->ExtentTableSize * node.ExtentTableID + node.ExtentID * sizeof(VXFS_EXTENT) / BLOCK_SIZE;
-        
-        Systemtable->BootServices->FreePool(extents);
-        extents = NULL;
-        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,BLOCK_SIZE,(VOID**)&extents);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout,u"AllocatePool failed");
-
-            return status;
-        }
-
-        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,512,(VOID*)extents);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout, u"ReadBlocks failed: ");
-            cout->OutputString(cout, itoa(status, 16));
-            cout->OutputString(cout, u"\r\n");
-
-            return status;
-        }
-
-        VXFS_EXTENT extent = {0};
-        for (UINTN i = 0; i < BLOCK_SIZE / sizeof(VXFS_EXTENT); i++)
-        {
-            if (node.ExtentID == extents[i].ExtentID)
-            {
-                extent = extents[i];
-                cout->OutputString(cout,u"Found system extent\r\n");
-                break;
-            }
-        }
-
-        cout->OutputString(cout,u"System Dir: ");
-        print_uint(extent.StartSector);
-        cout->OutputString(cout,u"\r\n");
-        cout->OutputString(cout,u"System Dir Size: ");
-        print_uint(extent.SizeInSectors);
-        cout->OutputString(cout,u"\r\n");
-
-        Systemtable->BootServices->FreePool(direntries);
-        direntries = NULL;
-        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,extent.SizeInSectors * BLOCK_SIZE,(VOID**)&direntries);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout,u"AllocatePool failed");
-
-            return status;
-        }
-        CurrentLBA = extent.StartSector;
-        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,extent.SizeInSectors * BLOCK_SIZE,(VOID*)direntries);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout, u"ReadBlocks failed: ");
-            cout->OutputString(cout, itoa(status, 16));
-            cout->OutputString(cout, u"\r\n");
-
-            return status;
-        }
-        ptr = 0;
-        VXFS_DIRENTRY*  kernelentry = NULL;
-        while (1)
-        {
-            VXFS_DIRENTRY* direntry = (VXFS_DIRENTRY*)((UINTN)(direntries) + ptr);
-            ptr += sizeof(VXFS_DIRENTRY);
-            if (direntry->NameLenght == 0 || direntry->valid != 1) break;
-            if (strlen("kernel") == direntry->NameLenght) {
-                cout->OutputString(cout,u"Found kernel\r\n");
-                kernelentry = direntry;
-                break;
-            }
-            ptr += direntry->NameLenght;
-        }
-
-        CurrentLBA = superblock->InodeTablesStart + superblock->InodeTableSize * kernelentry->InodeTableID  + kernelentry->InodeID * sizeof(VXFS_INODE) / BLOCK_SIZE;
-        Systemtable->BootServices->FreePool(inodetables);
-        inodetables = NULL;
-        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,BLOCK_SIZE,(VOID**)&inodetables);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout,u"AllocatePool failed");
-
-            return status;
-        }
-        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,512,(VOID*)inodetables);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout, u"ReadBlocks failed: ");
-            cout->OutputString(cout, itoa(status, 16));
-            cout->OutputString(cout, u"\r\n");
-
-            return status;
-        }
-        VXFS_INODE kernelnode = {0};
-        for (UINTN i = 0; i < BLOCK_SIZE / sizeof(VXFS_INODE); i++)
-        {
-            if (inodetables[i].InodeID == kernelentry->InodeID)
-            {
-                kernelnode = inodetables[i];
-                cout->OutputString(cout,u"Found kernel inode\r\n");
-                break;
-            }
-        }
-
-        CurrentLBA = superblock->ExtentTableStart + superblock->ExtentTableSize * kernelnode.ExtentTableID + kernelnode.ExtentID * sizeof(VXFS_EXTENT) / BLOCK_SIZE;
-        Systemtable->BootServices->FreePool(extents);
-        extents = NULL;
-        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,BLOCK_SIZE,(VOID**)&extents);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout,u"AllocatePool failed");
-
-            return status;
-        }
-
-        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,512,(VOID*)extents);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout, u"ReadBlocks failed: ");
-            cout->OutputString(cout, itoa(status, 16));
-            cout->OutputString(cout, u"\r\n");
-
-            return status;
-        }
-        VXFS_EXTENT kernelextent = {0};
-        for (UINTN i = 0; i < BLOCK_SIZE / sizeof(VXFS_EXTENT); i++)
-        {
-            print_uint(extents[i].ExtentID);
-            if (kernelnode.ExtentID == extents[i].ExtentID)
-            {
-                kernelextent = extents[i];
-                cout->OutputString(cout,u"Found Kernel extent\r\n");
-                break;
-            }
-        }
-
-        cout->OutputString(cout,u"Kernel Dir: ");
-        print_uint(kernelextent.StartSector);
-        cout->OutputString(cout,u"\r\n");
-        cout->OutputString(cout,u"Kernel Dir Size: ");
-        print_uint(kernelextent.SizeInSectors);
-        cout->OutputString(cout,u"\r\n");
-
-        VOID* kernel = NULL;
-        status = Systemtable->BootServices->AllocatePool(EfiLoaderData,kernelextent.SizeInSectors * BLOCK_SIZE,(VOID**)&kernel);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout,u"AllocatePool failed");
-
-            return status;
-        }
-
-
-        CurrentLBA = kernelextent.StartSector;
-        status = VxfsBlockIO->ReadBlocks(VxfsBlockIO,VxfsBlockIO->Media->MediaId,CurrentLBA,kernelextent.SizeInSectors * BLOCK_SIZE,kernel);
-        if (EFI_ERROR(status))
-        {
-            cout->OutputString(cout, u"ReadBlocks failed: ");
-            cout->OutputString(cout, itoa(status, 16));
-            cout->OutputString(cout, u"\r\n");
-
-            return status;
-        }
-
-        if (!memcmp(kernel,(UINT8[4]){0x7f,0x45,0x4c,0x46},4))
-        {
-            cout->OutputString(cout, u"Kernel loaded into memory\r\n");
-        }
-
-
-        Systemtable->BootServices->FreePool(kernel);
-        Systemtable->BootServices->FreePool(extents);
-        Systemtable->BootServices->FreePool(inodetables);
-        Systemtable->BootServices->FreePool(direntries);
-        Systemtable->BootServices->FreePool(inodetable);
-        Systemtable->BootServices->FreePool(superblock);
-
-    }else {
-        cout->OutputString(cout, u"\r\nVxFS partition NOT found.\r\n");
-        //Maybe add recovery here
-        return EFI_NOT_FOUND;
+    if (ehdr->e_type != ET_DYN) {
+        cout->OutputString(cout, u"Kernel is not correct executable type\r\n");
+        while (1) {}
     }
 
-    while(1) {}
+    Elf64_Phdr* phdr = (Elf64_Phdr*)((UINT8*)ehdr + ehdr->e_phoff);
 
+    UINTN max_align = PAGE_SIZE;
+    UINTN mem_min = UINT64_MAX, mem_max = 0;
+
+    for (UINT16 i = 0; i < ehdr->e_phnum; i++, phdr++) {
+        if (phdr->p_type != PT_LOAD) continue;
+        if (max_align < phdr->p_align) max_align = phdr->p_align;
+        UINTN begin = phdr->p_vaddr & ~(max_align - 1);
+        UINTN end   = (phdr->p_vaddr + phdr->p_memsz + max_align - 1) & ~(max_align - 1);
+        if (begin < mem_min) mem_min = begin;
+        if (end   > mem_max) mem_max = end;
+    }
+
+    UINTN mem_size = mem_max - mem_min;
+    UINTN pages    = (mem_size + PAGE_SIZE - 1) / PAGE_SIZE;
+    EFI_PHYSICAL_ADDRESS prog = 0;
+
+    if (EFI_ERROR(bs->AllocatePages(AllocateAnyPages, EfiLoaderCode, pages, &prog))) {
+        cout->OutputString(cout, u"Failed to allocate memory for kernel\r\n");
+        while (1) {}
+    }
+    memset((VOID*)prog, 0, mem_size);
+
+    phdr = (Elf64_Phdr*)((UINT8*)ehdr + ehdr->e_phoff);
+    for (UINT16 i = 0; i < ehdr->e_phnum; i++, phdr++) {
+        if (phdr->p_type != PT_LOAD) continue;
+        memcpy((UINT8*)prog + (phdr->p_vaddr - mem_min),
+               (UINT8*)kernel + phdr->p_offset,
+               phdr->p_filesz);
+    }
+
+    return (VOID*)((UINT8*)prog + ehdr->e_entry - mem_min);
+}
+
+static BOOLEAN DetectQEMU(EFI_SYSTEM_TABLE* ST)
+{
+    // --- Method 1: CPUID hypervisor bit + brand string ---
+    UINT32 ecx = 0;
+    __asm__ volatile("cpuid" : "=c"(ecx) : "a"(1) : "ebx", "edx");
+    if (ecx & (1 << 31)) {
+        // Hypervisor present — read brand string
+        UINT32 regs[4] = {0};
+        __asm__ volatile("cpuid"
+            : "=a"(regs[0]), "=b"(regs[1]), "=c"(regs[2]), "=d"(regs[3])
+            : "a"(0x40000000));
+        // regs[1..3] contain the hypervisor brand (12 chars)
+        CHAR8* brand = (CHAR8*)&regs[1];
+        if (AsciiStrStr(brand, "KVMKVM") || AsciiStrStr(brand, "TCGTCG"))
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+EFI_FILE* LoadFile(EFI_FILE* Directory, CHAR16* Path, EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable){
+	EFI_FILE* LoadedFile;
+
+    EFI_GUID lip = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+	EFI_LOADED_IMAGE_PROTOCOL* LoadedImage;
+	SystemTable->BootServices->HandleProtocol(ImageHandle, &lip, (void**)&LoadedImage);
+
+	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* FileSystem;
+    EFI_GUID SFSP = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+	SystemTable->BootServices->HandleProtocol(LoadedImage->DeviceHandle, &SFSP, (void**)&FileSystem);
+
+	if (Directory == NULL){
+		FileSystem->OpenVolume(FileSystem, &Directory);
+	}
+
+	EFI_STATUS s = Directory->Open(Directory, &LoadedFile, Path, EFI_FILE_MODE_READ, EFI_FILE_READ_ONLY);
+	if (s != EFI_SUCCESS){
+		return NULL;
+	}
+	return LoadedFile;
+
+}
+
+PSF1_FONT* LoadPSF1Font(EFI_FILE* Directory, CHAR16* Path, EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
+{
+	EFI_FILE* font = LoadFile(Directory, Path, ImageHandle, SystemTable);
+	if (font == NULL) return NULL;
+
+	PSF1_HEADER* fontHeader;
+	SystemTable->BootServices->AllocatePool(EfiLoaderData, sizeof(PSF1_HEADER), (void**)&fontHeader);
+	UINTN size = sizeof(PSF1_HEADER);
+	font->Read(font, &size, fontHeader);
+
+	if (fontHeader->magic[0] != PSF1_MAGIC0 || fontHeader->magic[1] != PSF1_MAGIC1){
+		return NULL;
+	}
+
+	UINTN glyphBufferSize = fontHeader->charsize * 256;
+	if (fontHeader->mode == 1) { //512 glyph mode
+		glyphBufferSize = fontHeader->charsize * 512;
+	}
+
+	void* glyphBuffer;
+	{
+		font->SetPosition(font, sizeof(PSF1_HEADER));
+		SystemTable->BootServices->AllocatePool(EfiLoaderData, glyphBufferSize, (void**)&glyphBuffer);
+		font->Read(font, &glyphBufferSize, glyphBuffer);
+	}
+
+	PSF1_FONT* finishedFont;
+	SystemTable->BootServices->AllocatePool(EfiLoaderData, sizeof(PSF1_FONT), (void**)&finishedFont);
+	finishedFont->psf1_Header = fontHeader;
+	finishedFont->glyphBuffer = glyphBuffer;
+	return finishedFont;
+
+}
+
+
+
+static Framebuffer SetupFramebuffer(EFI_SYSTEM_TABLE* ST)
+{
+    EFI_GUID gopGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* gop;
+
+    if (EFI_ERROR(ST->BootServices->LocateProtocol(&gopGuid, NULL, (VOID**)&gop))) {
+        cout->OutputString(cout, u"Failed to find GOP\r\n");
+        while (1) {}
+    }
+
+    UINT32 bestMode   = 0;
+    UINTN  bestPixels = 0;
+
+    for (UINT32 i = 0; i < gop->Mode->MaxMode; i++) {
+        EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* info;
+        UINTN infoSize;
+        if (EFI_ERROR(gop->QueryMode(gop, i, &infoSize, &info))) continue;
+        if ((info->HorizontalResolution > 1280 || info->VerticalResolution > 720) && DetectQEMU(ST)) continue;
+        UINTN pixels = info->HorizontalResolution * info->VerticalResolution;
+        if (pixels > bestPixels) { bestPixels = pixels; bestMode = i; }
+    }
+
+    gop->SetMode(gop, bestMode);
+
+    Framebuffer fb = {0};
+    fb.BaseAddress       = (VOID*)gop->Mode->FrameBufferBase;
+    fb.BufferSize        = gop->Mode->FrameBufferSize;
+    fb.Width             = gop->Mode->Info->HorizontalResolution;
+    fb.Height            = gop->Mode->Info->VerticalResolution;
+    fb.PixelsPerScanLine = gop->Mode->Info->PixelsPerScanLine;
+    return fb;
+}
+
+
+EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* ST)
+{
+    cout = ST->ConOut;
+    cout->ClearScreen(cout);
+
+    EFI_GUID    BlockIOGuid  = EFI_BLOCK_IO_PROTOCOL_GUID;
+    UINTN       HandleCount  = 0;
+    EFI_HANDLE* HandleBuffer = NULL;
+
+    if (EFI_ERROR(ST->BootServices->LocateHandleBuffer(
+            ByProtocol, &BlockIOGuid, NULL, &HandleCount, &HandleBuffer))) {
+        cout->OutputString(cout, u"Failed LocateHandleBuffer\r\n");
+    }
+
+    cout->OutputString(cout, u"Handles found: ");
+    PrintHex(HandleCount);
+    print_nl();
+
+    VxfsScanResult result = FindVxfsPartition(ST, ImageHandle, HandleBuffer, HandleCount);
+    if (!result.bio) {
+        cout->OutputString(cout, u"\r\nVxFS partition NOT found on any drive.\r\n");
+        while (1) {}
+    }
+
+    EFI_BLOCK_IO_PROTOCOL* bio      = result.bio;
+    UINTN                  partStart = result.PartitionStartLBA;
+
+    cout->OutputString(cout, u"Partition start LBA: ");
+    print_uint(partStart);
+    print_nl();
+
+    VXFS_SUPERBLOCK* sb = LoadSuperblock(ST->BootServices, bio, partStart);
+
+    VXFS_INODE  root_inode = ReadInode(ST->BootServices, bio, sb, partStart, 0, (uint16_t)sb->RootInodeID);
+    VXFS_EXTENT root_ext   = InodeToExtent(ST->BootServices, bio, sb, partStart, &root_inode);
+
+    cout->OutputString(cout, u"Root Dir: ");  print_uint(root_ext.StartSector);   print_nl();
+    cout->OutputString(cout, u"Root Size: "); print_uint(root_ext.SizeInSectors);  print_nl();
+
+    VOID* root_dir = ReadExtentData(ST->BootServices, bio, &root_ext, partStart);
+
+    VXFS_DIRENTRY* sys_entry = FindDirEntry(root_dir, "system");
+    if (!sys_entry) {
+        cout->OutputString(cout, u"Failed to find system directory\r\n");
+        while (1) {}
+    }
+    cout->OutputString(cout, u"Found system dir\r\n");
+
+    VXFS_INODE  sys_inode = ReadInode(ST->BootServices, bio, sb, partStart,
+                                      sys_entry->InodeTableID, sys_entry->InodeID);
+    VXFS_EXTENT sys_ext   = InodeToExtent(ST->BootServices, bio, sb, partStart, &sys_inode);
+
+    cout->OutputString(cout, u"System Dir: ");  print_uint(sys_ext.StartSector);   print_nl();
+    cout->OutputString(cout, u"System Size: "); print_uint(sys_ext.SizeInSectors);  print_nl();
+
+    ST->BootServices->FreePool(root_dir);
+    VOID* sys_dir = ReadExtentData(ST->BootServices, bio, &sys_ext, partStart);
+
+    VXFS_DIRENTRY* kern_entry = FindDirEntry(sys_dir, "kernel");
+    if (!kern_entry) {
+        cout->OutputString(cout, u"Failed to find kernel\r\n");
+        while (1) {}
+    }
+    cout->OutputString(cout, u"Found kernel\r\n");
+
+    VXFS_INODE  kern_inode = ReadInode(ST->BootServices, bio, sb, partStart,
+                                       kern_entry->InodeTableID, kern_entry->InodeID);
+    VXFS_EXTENT kern_ext   = InodeToExtent(ST->BootServices, bio, sb, partStart, &kern_inode);
+
+    cout->OutputString(cout, u"Kernel LBA: ");  print_uint(kern_ext.StartSector);   print_nl();
+    cout->OutputString(cout, u"Kernel Size: "); print_uint(kern_ext.SizeInSectors);  print_nl();
+
+    ST->BootServices->FreePool(sys_dir);
+
+    VOID* kernel_buf = ReadExtentData(ST->BootServices, bio, &kern_ext, partStart);
+    if (!memcmp(kernel_buf, (UINT8[4]){0x7f, 0x45, 0x4c, 0x46}, 4))
+        cout->OutputString(cout, u"Kernel loaded into memory\r\n");
+
+    VOID* entrypoint = LoadElf(ST->BootServices, kernel_buf);
+
+    Framebuffer fb = SetupFramebuffer(ST);
+
+    EFI_MEMORY_DESCRIPTOR* Map = NULL;
+    UINTN MapSize = 0, MapKey = 0, DescriptorSize = 0;
+    UINT32 DescriptorVersion = 0;
+
+    ST->BootServices->FreePool(kernel_buf);
+    ST->BootServices->FreePool(sb);
+
+    ST->BootServices->GetMemoryMap(&MapSize, Map, &MapKey, &DescriptorSize, &DescriptorVersion);
+    ST->BootServices->AllocatePool(EfiLoaderData, MapSize, (VOID**)&Map);
+    ST->BootServices->GetMemoryMap(&MapSize, Map, &MapKey, &DescriptorSize, &DescriptorVersion);
+
+    typedef void (*kernel_fn_t)(bootinfo_t);
+    kernel_fn_t __attribute__((sysv_abi)) kernel_main =
+        (kernel_fn_t __attribute__((sysv_abi)))(uintptr_t)entrypoint;
+
+    PSF1_FONT* font = LoadPSF1Font(NULL,u"zap-light16.psf",ImageHandle,ST);
+
+    bootinfo_t info = {0};
+    info.mMap           = Map;
+    info.MapSize        = MapSize;
+    info.DescriptorSize = DescriptorSize;
+    info.framebuffer    = fb;
+    info.bootfont = font;
+
+
+    ST->BootServices->ExitBootServices(ImageHandle, MapKey);
+    kernel_main(info);
+
+    while (1) {}
     return EFI_SUCCESS;
 }
