@@ -74,6 +74,12 @@ PageAllocater::PageAllocater(EFI_MEMORY_DESCRIPTOR* desc, size_t mMapSize, size_
             ReservePages((void*)memdesc->PhysicalStart, memdesc->NumberOfPages);
         }
     }
+
+    // Lock bios
+    for (uint64_t t = 0; t < 100; t += 1)
+    {
+        LockPage((void*)(0 + t * 4096));
+    }
 }
 void* PageAllocater::AllocatePage()
 {

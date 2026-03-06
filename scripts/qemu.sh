@@ -5,6 +5,6 @@ qemu-system-x86_64 -drive if=pflash,format=raw,unit=0,file=./bin/OVMF_CODE.fd,re
                    -cpu qemu64 \
                    -device rtl8139,netdev=net0 -netdev user,id=net0 \
                    -serial stdio \
-                   -drive file=build/Vortex.hdd,format=raw -S -s
+                   -drive file=build/Vortex.hdd,format=raw 
 
                 
