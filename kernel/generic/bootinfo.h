@@ -57,5 +57,3 @@ typedef struct
     Framebuffer framebuffer;
     PSF1_FONT* bootfont;
 }bootinfo_t;
-
-uint64_t GetMemorySize(EFI_MEMORY_DESCRIPTOR* mMap, uint64_t mMapEntries, uint64_t mMapDescSize);
