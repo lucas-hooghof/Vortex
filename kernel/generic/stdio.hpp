@@ -1,11 +1,11 @@
 #pragma once
 
-#include <generic/stdint.h>
-#include <generic/bootinfo.h>
+#include <generic/stdint.hpp>
+#include <generic/bootinfo.hpp>
 
-#include <generic/io.h>
+#include <generic/io.hpp>
 
-#include <generic/stdarg.h>
+#include <generic/stdarg.hpp>
 
 
 void Initilize(bootinfo_t bootinfo);

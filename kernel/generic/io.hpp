@@ -1,5 +1,5 @@
 #pragma once
-#include <generic/stdint.h>
+#include <generic/stdint.hpp>
 
 void outb (uint16_t port, uint8_t value);
 uint8_t inb(uint16_t port);

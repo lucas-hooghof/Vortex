@@ -1,6 +1,6 @@
 #pragma once
 
-#include <generic/stdint.h>
+#include <generic/stdint.hpp>
 
 typedef enum {
    EfiReservedMemoryType,
@@ -57,3 +57,5 @@ typedef struct
     Framebuffer framebuffer;
     PSF1_FONT* bootfont;
 }bootinfo_t;
+
+size_t GetMemorySize(EFI_MEMORY_DESCRIPTOR* mMap,size_t MapSize,size_t MapDescSize);
