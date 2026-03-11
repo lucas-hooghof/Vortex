@@ -135,7 +135,7 @@ void Logger::puts_dbg(const char* str)
 #define PRINTF_LENGTH_LONG          3
 #define PRINTF_LENGTH_LONG_LONG     4
 
-const char g_HexChars[] = "0123456789abcdef";
+const char g_HexChars[] = "0123456789ABCDEF";
 
 void log_unsigned(uint64_t number,uint16_t radix,void(*putchar)(char c))
 {
@@ -150,6 +150,11 @@ void log_unsigned(uint64_t number,uint16_t radix,void(*putchar)(char c))
     } while (number > 0);
 
     // print number in reverse order
+    if (radix == 16)
+    {
+        putchar('0');
+        putchar('X');
+    }
     while (--pos >= 0)
         putchar(buffer[pos]);
         
