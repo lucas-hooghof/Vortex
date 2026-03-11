@@ -56,6 +56,7 @@ sudo mount "$LOOP_P1" /tmp/esp
 echo "Copying EFI file..."
 sudo mkdir -p /tmp/esp/EFI/BOOT
 sudo cp "$EFI_FILE" /tmp/esp/EFI/BOOT/BOOTX64.EFI
+sudo cp bin/bootfont.psf /tmp/esp/bootfont.psf
 
 sync
 

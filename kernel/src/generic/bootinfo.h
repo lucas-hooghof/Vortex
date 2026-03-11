@@ -1,6 +1,6 @@
 #pragma once
 
-#include <generic/stdint.hpp>
+#include <generic/stdint.h>
 
 
 typedef enum {

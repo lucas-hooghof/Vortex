@@ -10,13 +10,13 @@ CXX := x86_64-elf-g++
 LD := x86_64-elf-ld
 NASM := nasm
 ASFLAGS := -f elf64
-CFLAGS := -ffreestanding -O2 -Wall -Wextra -Isrc -Werror -Wpedantic -g -fPIE
+CFLAGS := -ffreestanding -Wall -Wextra -Isrc -Werror -Wpedantic -g
 CXXFLAGS := $(CFLAGS) -fno-exceptions -fno-rtti -mno-red-zone -mgeneral-regs-only
 ifeq ($(log),1)
 CFLAGS += -DLOG
-CCFLAGS += -DLOG
+CXXFLAGS += -DLOG
 endif
-LDFLAGS := -T linker.ld -nostdlib -pie
+LDFLAGS := -T linker.ld -nostdlib -static -Bsymbolic
 
 # Find all source files
 C_SRCS := $(shell find $(SRC_DIR) -name '*.c')

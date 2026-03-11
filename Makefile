@@ -24,8 +24,6 @@ $(BUILD_DIR):
 
 $(ROOT_DIR):
 	mkdir -p $(ROOT_DIR)
-	mkdir -p $(ROOT_DIR)/system/dat
-	cp bin/bootfont.psf $(ROOT_DIR)/system/dat/bootfont
 
 clean:
 	@echo "Cleaning build directory..."

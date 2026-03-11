@@ -506,9 +506,9 @@ VOID *memcpy(VOID *dst, VOID *src, UINTN len) {
 }
 
 
-INTN memcmp(VOID *m1, VOID *m2, UINTN len) {
+INTN memcmp(VOID *m1, const VOID *m2, UINTN len) {
     UINT8 *p = m1;
-    UINT8 *q = m2;
+    const UINT8 *q = m2;
     for (UINTN i = 0; i < len; i++)
         if (p[i] != q[i]) return (INTN)(p[i]) - (INTN)(q[i]);
 

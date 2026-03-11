@@ -4,6 +4,8 @@ ENTRY(_start)          /* Entry point symbol from assembly */
 
 SECTIONS
 {
+
+    . = 0x200000;
     .text : ALIGN(0x1000)
     {
         *(.text*)    
@@ -15,14 +17,6 @@ SECTIONS
     .rodata : ALIGN(0x1000)
     {
         *(.rodata*)     
-    } :rodata
-
-    .init_array ALIGN(8) :
-    {
-        __init_array_start = .;
-        KEEP(*(.init_array))
-        KEEP(*(.init_array.*))
-        __init_array_end = .;
     } :rodata
 
     
@@ -39,6 +33,14 @@ SECTIONS
         *(COMMON)
         __bss_end = .;
     } :data
+
+    .init_array ALIGN(8) :
+    {
+        __init_array_start = .;
+        KEEP(*(.init_array))
+        KEEP(*(.init_array.*))
+        __init_array_end = .;
+    } :rodata
 
     .stack ALIGN(16) : {
         __stack_start__ = .;

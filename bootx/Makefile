@@ -10,7 +10,6 @@ CFLAGS ::= \
 	-std=c17 \
 	-Wall \
 	-Wextra \
-	-Wpedantic \
 	-mno-red-zone \
 	-ffreestanding \
 	-fno-stack-protector

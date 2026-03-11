@@ -6,7 +6,7 @@ qemu-system-x86_64 -drive if=pflash,format=raw,unit=0,file=bin/OVMF_CODE-pure-ef
                    -drive if=none,id=disk0,format=raw,file=build/Vortex.hdd \
                    -device ahci,id=ahci \
                    -device ide-hd,drive=disk0,bus=ahci.0 \
-                   -no-reboot -no-shutdown -serial stdio 
+                   -debugcon stdio
 
 #NVME
 #qemu-system-x86_64 \

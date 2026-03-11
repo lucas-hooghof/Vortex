@@ -308,9 +308,12 @@ DISK_FILE* FindVXFS(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         if (!memcmp(buffer,VXFS_HEADER,4))
         {
             VXFS_SUPERBLOCK* superblock = (VXFS_SUPERBLOCK*)buffer;
-            DISK_FILE* diskfile = CreateDiskFile(biop);
+            if (!memcmp(superblock->Label,"Vortex",6))
+            {
+                DISK_FILE* diskfile = CreateDiskFile(biop);
+                return diskfile;
+            }
 
-            return diskfile;
 
         }
     }
@@ -495,81 +498,88 @@ memset (void *dest, register int val, register size_t len)
   return dest;
 }
 
-VOID* LoadELF(EFI_STATUS* status,void* elfdata)
+VOID* LoadELF(EFI_STATUS* status, VOID* elfdata)
 {
     Elf64_Ehdr* ehdr = (Elf64_Ehdr*)elfdata;
 
-    if (memcmp(ehdr->e_ident,(UINT8[4]){0x7F,'E','L','F'},4))
+    // Validate ELF
+    if (memcmp(ehdr->e_ident, (UINT8[4]){0x7F,'E','L','F'}, 4))
     {
         *status = EFI_COMPROMISED_DATA;
         return NULL;
     }
 
-    if (ehdr->e_type != ET_DYN)
+    if (ehdr->e_type != ET_EXEC)
     {
         *status = EFI_UNSUPPORTED;
         return NULL;
     }
 
-    Elf64_Phdr* phdrs = (Elf64_Phdr*)((uint64_t)elfdata + ehdr->e_phoff);
+    Elf64_Phdr* phdrs = (Elf64_Phdr*)((UINT8*)elfdata + ehdr->e_phoff);
 
-    UINTN max_alignment = 4096; //Page
-    UINTN mem_min = UINT64_MAX, mem_max = 0;
+    UINT64 min = UINT64_MAX;
+    UINT64 max = 0;
 
-    for (uint64_t header = 0; header < ehdr->e_phnum; header++)
+    // Find memory bounds
+    for (UINT16 i = 0; i < ehdr->e_phnum; i++)
     {
-        Elf64_Phdr phdr = phdrs[header];
+        Elf64_Phdr* ph = &phdrs[i];
 
-        if(phdr.p_type != PT_LOAD) continue;
+        if (ph->p_type != PT_LOAD)
+            continue;
 
-        if (max_alignment < phdr.p_align) max_alignment = phdr.p_align;
+        if (ph->p_vaddr < min)
+            min = ph->p_vaddr;
 
-        UINTN hdr_begin = phdr.p_paddr;
-        UINTN hdr_end = phdr.p_paddr + phdr.p_memsz + max_alignment - 1;
-
-        hdr_begin &= ~(max_alignment-1);
-        hdr_end &= ~(max_alignment-1);
-
-
-
+        UINT64 end = ph->p_vaddr + ph->p_memsz;
+        if (end > max)
+            max = end;
     }
 
-
-        UINTN max_memory_needed = mem_max - mem_min;   
-
-    EFI_PHYSICAL_ADDRESS program_buffer = 0;
-    UINTN pages_needed = (max_memory_needed + (4096-1)) / 4096;
-
-    *status = bs->AllocatePages(AllocateAnyPages, EfiLoaderCode, pages_needed, &program_buffer);
-    if (EFI_ERROR(*status)) {
-        printf_c16(u"Failed to allocate\r\n");
+    if (min == UINT64_MAX)
+    {
+        *status = EFI_NOT_FOUND;
         return NULL;
     }
 
-    // Zero init buffer, to ensure 0 padding for all program sections
-    memset((VOID *)program_buffer, 0, max_memory_needed);
+    // Page align
+    UINT64 aligned_min = min & ~0xFFFULL;
+    UINT64 aligned_max = (max + 0xFFF) & ~0xFFFULL;
 
-    // Load program headers into buffer
-    Elf64_Phdr* phdr = (Elf64_Phdr *)((UINT8 *)ehdr + ehdr->e_phoff);
-    for (UINT16 i = 0; i < ehdr->e_phnum; i++, phdr++) {
-        // Only interested in loadable program headers
-        if (phdr->p_type != PT_LOAD) continue;
+    UINTN pages = (aligned_max - aligned_min) / 0x1000;
 
-        // Use relative position of program section in file, to ensure it still works correctly.
-        //   With PIE executables, this means we can use any entry point or addresses, as long as
-        //   we use the same relative addresses.
-        UINTN relative_offset = phdr->p_vaddr - mem_min;
+    EFI_PHYSICAL_ADDRESS base = aligned_min;
 
-        // Read p_filesz amount of data from p_offset in original file buffer,
-        //   to the same relative offset of p_vaddr in new buffer
-        UINT8 *dst = (UINT8 *)program_buffer + relative_offset; 
-        UINT8 *src = (UINT8 *)elfdata     + phdr->p_offset;
-        UINT32 len = phdr->p_filesz;
-        memcpy(dst, src, len);
+    // Allocate once
+    *status = bs->AllocatePages(
+        AllocateAddress,
+        EfiLoaderData,
+        pages,
+        &base
+    );
+
+    if (EFI_ERROR(*status))
+        return NULL;
+
+    // Zero entire region first
+    memset((VOID*)aligned_min, 0, aligned_max - aligned_min);
+
+    // Load segments
+    for (UINT16 i = 0; i < ehdr->e_phnum; i++)
+    {
+        Elf64_Phdr* ph = &phdrs[i];
+
+        if (ph->p_type != PT_LOAD)
+            continue;
+
+        memcpy(
+            (VOID*)ph->p_vaddr,
+            (UINT8*)elfdata + ph->p_offset,
+            ph->p_filesz
+        );
     }
 
-    VOID *entry_point = (VOID *)((UINT8 *)program_buffer + (ehdr->e_entry - mem_min));
-    return entry_point;
+    return (VOID*)ehdr->e_entry;
 }
 
 typedef struct {
@@ -594,17 +604,63 @@ typedef struct {
 	void* glyphBuffer;
 } PSF1_FONT;
 
-PSF1_FONT* LoadFont(void* fontdata)
-{
-    PSF1_HEADER* fontheader = (PSF1_HEADER*)fontdata;
+EFI_FILE* LoadFile(EFI_FILE* Directory, CHAR16* Path, EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable){
+	EFI_FILE* LoadedFile;
 
-    
-	if (fontheader->magic[0] != PSF1_MAGIC0 || fontheader->magic[1] != PSF1_MAGIC1){
+	EFI_LOADED_IMAGE_PROTOCOL* LoadedImage;
+    EFI_GUID guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+	SystemTable->BootServices->HandleProtocol(ImageHandle, &guid, (void**)&LoadedImage);
+
+	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* FileSystem;
+    EFI_GUID guid2 = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+	SystemTable->BootServices->HandleProtocol(LoadedImage->DeviceHandle, &guid2, (void**)&FileSystem);
+
+	if (Directory == NULL){
+		FileSystem->OpenVolume(FileSystem, &Directory);
+	}
+
+	EFI_STATUS s = Directory->Open(Directory, &LoadedFile, Path, EFI_FILE_MODE_READ, EFI_FILE_READ_ONLY);
+	if (s != EFI_SUCCESS){
+		return NULL;
+	}
+	return LoadedFile;
+
+}
+
+PSF1_FONT* LoadPSF1Font(EFI_FILE* Directory, CHAR16* Path, EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
+{
+	EFI_FILE* font = LoadFile(Directory, Path, ImageHandle, SystemTable);
+	if (font == NULL) return NULL;
+
+	PSF1_HEADER* fontHeader;
+	SystemTable->BootServices->AllocatePool(EfiLoaderData, sizeof(PSF1_HEADER), (void**)&fontHeader);
+	UINTN size = sizeof(PSF1_HEADER);
+	font->Read(font, &size, fontHeader);
+
+	if (fontHeader->magic[0] != PSF1_MAGIC0 || fontHeader->magic[1] != PSF1_MAGIC1){
 		return NULL;
 	}
 
-    return (PSF1_FONT*)fontdata;
+	UINTN glyphBufferSize = fontHeader->charsize * 256;
+	if (fontHeader->mode == 1) { //512 glyph mode
+		glyphBufferSize = fontHeader->charsize * 512;
+	}
+
+	void* glyphBuffer;
+	{
+		font->SetPosition(font, sizeof(PSF1_HEADER));
+		SystemTable->BootServices->AllocatePool(EfiLoaderData, glyphBufferSize, (void**)&glyphBuffer);
+		font->Read(font, &glyphBufferSize, glyphBuffer);
+	}
+
+	PSF1_FONT* finishedFont;
+	SystemTable->BootServices->AllocatePool(EfiLoaderData, sizeof(PSF1_FONT), (void**)&finishedFont);
+	finishedFont->psf1_Header = fontHeader;
+	finishedFont->glyphBuffer = glyphBuffer;
+	return finishedFont;
+
 }
+
 
 EFI_STATUS GetFramebuffer(FRAMEBUFFER* fb) {
     EFI_STATUS status;
@@ -642,6 +698,8 @@ EFI_STATUS GetFramebuffer(FRAMEBUFFER* fb) {
     if (EFI_ERROR(status)) {
         return status;
     }
+    printf_c16(u"PixelFormat: %d\n", gop->Mode->Info->PixelFormat);
+
 
     // Fill framebuffer info
     fb->BaseAddress = (void*)gop->Mode->FrameBufferBase;
@@ -661,6 +719,74 @@ typedef struct
     UINTN MapSize;
     UINTN DescriptorSize;
 }bootinfo_t;
+
+// Print a single PSF1 glyph to the UEFI console as 1s and 0s
+void PrintGlyphDebug(PSF1_FONT* font, char c)
+{
+    // Ensure unsigned indexing
+    uint8_t uc = (uint8_t)c;
+
+    // Glyph pointer: glyphs start immediately after the PSF header
+    uint8_t* fontptr = (uint8_t*)font->glyphBuffer + uc * 16;
+
+    // Loop over each row of the glyph
+    for (size_t yoff = 0; yoff < 16; yoff++)
+    {
+        uint8_t row = fontptr[yoff];
+
+        // Loop over each column of the glyph (8 pixels wide)
+        for (size_t xoff = 0; xoff < 8; xoff++)
+        {
+            if (row & (128 >> xoff))
+            {
+                printf_c16(u"1"); // Pixel ON
+            }
+            else
+            {
+                printf_c16(u"0"); // Pixel OFF
+            }
+        }
+
+        printf_c16(u"\r\n"); // Newline at end of row
+    }
+}
+
+void HexDump(void* buffer, size_t size)
+{
+    uint8_t* buf = (uint8_t*)buffer;
+
+    for (size_t i = 0; i < size; i += 16)
+    {
+        // Print address
+        printf_c16(u"%08x  ", (unsigned int)i);
+
+        // Print hex bytes
+        for (size_t j = 0; j < 16; j++)
+        {
+            if (i + j < size)
+            {
+                printf_c16(u"%02x ", buf[i + j]);
+            }
+            else
+            {
+                printf_c16(u"   "); // padding for last line
+            }
+        }
+
+        // Print ASCII
+        printf_c16(u" |");
+        for (size_t j = 0; j < 16 && i + j < size; j++)
+        {
+            uint8_t c = buf[i + j];
+            if (c >= 32 && c <= 126)
+                printf_c16((CHAR16[]){(CHAR16)c, 0}); // printable
+            else
+                printf_c16(u"."); // non-printable
+        }
+        printf_c16(u"|\r\n");
+    }
+}
+
 
 
 EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
@@ -773,69 +899,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         while(1){}
     }
 
-
-    VXFS_DIRENTRY DatDirEntry = GetDirEntry(&status,SystemExtent,vxfspartition,"dat");
-    if (status == EFI_NOT_FOUND || DatDirEntry.NameLenght != strlen("dat"))
-    {
-        printf_c16(u"Failed to find dat folder: %s\r\n",GetEFIError(status));
-        // Recovery code?
-        while(1){}
-    }
-
-
-    VXFS_INODE DatInode = GetInode(&status,superblock,DatDirEntry.InodeID,DatDirEntry.InodeTableID,vxfspartition);
-    if (status == EFI_NOT_FOUND)
-    {
-        printf_c16(u"Failed to find dat inode\r\n");
-        // Recovery code?
-        while(1){}
-    }
-
-
-    VXFS_EXTENT DatExtent = GetExtent(&status,superblock,DatInode.ExtentID,DatInode.ExtentTableID,vxfspartition);
-    if (status == EFI_NOT_FOUND)
-    {
-        printf_c16(u"Failed to find dat extent\r\n");
-        // Recovery code?
-        while(1){}
-    }
-
-    VXFS_DIRENTRY BootFontDirEntry = GetDirEntry(&status,DatExtent,vxfspartition,"bootfont");
-    if (status == EFI_NOT_FOUND || DatDirEntry.NameLenght != strlen("dat"))
-    {
-        printf_c16(u"Failed to find dat folder\r\n");
-        // Recovery code?
-        while(1){}
-    }
-
-
-    VXFS_INODE BootFontInode = GetInode(&status,superblock,BootFontDirEntry.InodeID,BootFontDirEntry.InodeTableID,vxfspartition);
-    if (status == EFI_NOT_FOUND)
-    {
-        printf_c16(u"Failed to find dat inode\r\n");
-        // Recovery code?
-        while(1){}
-    }
-
-    VXFS_EXTENT BootFontExtent = GetExtent(&status,superblock,BootFontInode.ExtentID,BootFontInode.ExtentTableID,vxfspartition);
-    if (status == EFI_NOT_FOUND)
-    {
-        printf_c16(u"Failed to find dat extent\r\n");
-        // Recovery code?
-        while(1){}
-    }
-    
-    VOID* fontdata = LoadFileFromVXFS(&status,BootFontExtent,vxfspartition);
-    if (fontdata == NULL)
-    {
-        printf_c16(u"Failed to read font\r\n");
-        //Recovery code?
-        while(1){}
-    }
-
-
-    PSF1_FONT* font = LoadFont(fontdata);
-
+    PSF1_FONT* font = LoadPSF1Font(NULL,u"bootfont.psf",ImageHandle,SystemTable);
 
 
     VXFS_EXTENT KernelExtent = GetExtent(&status,superblock,KernelInode.ExtentID,KernelInode.ExtentTableID,vxfspartition);
@@ -871,9 +935,12 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
     DestroyDiskFile(vxfspartition);
     bs->FreePool(superblock);
 
+
     FRAMEBUFFER* framebuffer = NULL;
     status = bs->AllocatePool(EfiLoaderData,sizeof(FRAMEBUFFER),(VOID**)&framebuffer);
     GetFramebuffer(framebuffer);
+
+
 
 
     UINTN MapSize = 0,MapKey = 0,DescriptorSize = 0;
@@ -898,7 +965,6 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
     info.framebuffer = framebuffer;
     info.font = font;
 
-    printf_c16(u"Gere");
     //Call kernel
     void (__attribute__((sysv_abi)) *kernel_start)(bootinfo_t*) =
     (void (__attribute__((sysv_abi)) *)(bootinfo_t*)) kernelEntryPoint;

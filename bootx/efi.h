@@ -390,6 +390,14 @@ EFI_STATUS
    OUT EFI_HANDLE                               **Buffer
    );
 
+
+   typedef
+EFI_STATUS
+(EFIAPI *EFI_HANDLE_PROTOCOL) (
+   IN EFI_HANDLE                    Handle,
+   IN EFI_GUID                      *Protocol,
+   OUT VOID                         **Interface
+   );
 #define EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL   0x00000001
 #define EFI_OPEN_PROTOCOL_GET_PROTOCOL         0x00000002
 #define EFI_OPEN_PROTOCOL_TEST_PROTOCOL        0x00000004
@@ -458,7 +466,7 @@ typedef struct {
     EFI_HANDLE     InstallProtocolInterface;            // EFI 1.0+
     EFI_HANDLE   ReinstallProtocolInterface;          // EFI 1.0+
     EFI_HANDLE   UninstallProtocolInterface;          // EFI 1.0+
-    EFI_HANDLE                HandleProtocol;                      // EFI 1.0+
+    EFI_HANDLE_PROTOCOL                HandleProtocol;                      // EFI 1.0+
     VOID*   Reserved;    // EFI 1.0+
     EFI_HANDLE       RegisterProtocolNotify;              // EFI  1.0+
     EFI_HANDLE                  LocateHandle;                        // EFI 1.0+
@@ -693,3 +701,121 @@ typedef struct _EFI_GRAPHICS_OUTPUT_PROTOCOL {
  EFI_GRAPHICS_OUTPUT_PROTOCOL_BLT            Blt;
  EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE           *Mode;
 } EFI_GRAPHICS_OUTPUT_PROTOCOL;
+
+#define EFI_LOADED_IMAGE_PROTOCOL_GUID \
+  {0x5B1B31A1,0x9562,0x11d2,\
+    0x8E,0x3F,{0x00,0xA0,0xC9,0x69,0x72,0x3B}}
+
+#define EFI_LOADED_IMAGE_PROTOCOL_REVISION 0x1000
+
+typedef struct {
+   UINT32                        Revision;
+   EFI_HANDLE                    ParentHandle;
+   EFI_SYSTEM_TABLE              *SystemTable;
+
+   // Source location of the image
+   EFI_HANDLE                    DeviceHandle;
+   EFI_DEVICE_PATH_PROTOCOL      *FilePath;
+   VOID                          *Reserved;
+
+   // Image’s load options
+   UINT32                        LoadOptionsSize;
+   VOID                          *LoadOptions;
+
+   // Location where image was loaded
+   VOID                          *ImageBase;
+   UINT64                        ImageSize;
+   EFI_MEMORY_TYPE               ImageCodeType;
+   EFI_MEMORY_TYPE               ImageDataType;
+   EFI_HANDLE              Unload;
+} EFI_LOADED_IMAGE_PROTOCOL;
+
+#define EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID \
+ {0x0964e5b22,0x6459,0x11d2,\
+  0x8e,0x39,{0x00,0xa0,0xc9,0x69,0x72,0x3b}}
+
+
+  #define EFI_FILE_PROTOCOL_REVISION           0x00010000
+#define EFI_FILE_PROTOCOL_REVISION2          0x00020000
+#define EFI_FILE_PROTOCOL_LATEST_REVISION EFI_FILE_PROTOCOL_REVISION2
+
+typedef struct _EFI_FILE EFI_FILE;
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_OPEN) (
+  IN EFI_FILE                  *This,
+  OUT EFI_FILE                 **NewHandle,
+  IN CHAR16                             *FileName,
+  IN UINT64                             OpenMode,
+  IN UINT64                             Attributes
+  );
+
+
+  typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_READ) (
+  IN EFI_FILE           *This,
+  IN OUT UINTN                   *BufferSize,
+  OUT VOID                       *Buffer
+  );
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_SET_POSITION) (
+   IN EFI_FILE      *This,
+   IN UINT64                 Position
+   );
+
+
+
+typedef struct _EFI_FILE {
+  UINT64                          Revision;
+  EFI_FILE_OPEN                   Open;
+  EFI_HANDLE                  Close;
+  EFI_HANDLE                 Delete;
+  EFI_FILE_READ                   Read;
+  EFI_HANDLE                  Write;
+  EFI_HANDLE           GetPosition;
+  EFI_FILE_SET_POSITION           SetPosition;
+  EFI_HANDLE               GetInfo;
+  EFI_HANDLE               SetInfo;
+  EFI_HANDLE                  Flush;
+  EFI_HANDLE                OpenEx; // Added for revision 2
+  EFI_HANDLE                ReadEx; // Added for revision 2
+  EFI_HANDLE               WriteEx; // Added for revision 2
+  EFI_HANDLE               FlushEx; // Added for revision 2
+} EFI_FILE;
+
+  #define EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_REVISION 0x00010000
+
+
+typedef struct _EFI_SIMPLE_FILE_SYSTEM_PROTOCOL EFI_SIMPLE_FILE_SYSTEM_PROTOCOL;
+
+typedef
+EFI_STATUS
+(EFIAPI *EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_OPEN_VOLUME) (
+  IN EFI_SIMPLE_FILE_SYSTEM_PROTOCOL                   *This,
+  OUT EFI_FILE                                **Root
+  );
+
+
+typedef struct _EFI_SIMPLE_FILE_SYSTEM_PROTOCOL {
+ UINT64                                         Revision;
+ EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_OPEN_VOLUME    OpenVolume;
+} EFI_SIMPLE_FILE_SYSTEM_PROTOCOL;
+
+#define EFI_FILE_MODE_READ       0x0000000000000001
+#define EFI_FILE_MODE_WRITE      0x0000000000000002
+#define EFI_FILE_MODE_CREATE     0x8000000000000000
+
+//******************************************************
+// File Attributes
+//******************************************************
+#define EFI_FILE_READ_ONLY       0x0000000000000001
+#define EFI_FILE_HIDDEN          0x0000000000000002
+#define EFI_FILE_SYSTEM          0x0000000000000004
+#define EFI_FILE_RESERVED        0x0000000000000008
+#define EFI_FILE_DIRECTORY       0x0000000000000010
+#define EFI_FILE_ARCHIVE         0x0000000000000020
+#define EFI_FILE_VALID_ATTR      0x0000000000000037
