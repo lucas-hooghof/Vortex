@@ -13,7 +13,7 @@ void Initilize(EFI_SYSTEM_TABLE* systemtable)
     cerr = systemtable->StdErr;
     bs = systemtable->BootServices;
 
-    cout->ClearScreen(cout);
+    //cout->ClearScreen(cout);
 }
 
 typedef struct {

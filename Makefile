@@ -1,6 +1,8 @@
 BUILD_DIR=$(abspath build/)
 ROOT_DIR=$(abspath root/)
 
+log ?= 0
+
 .PHONY: always image efi run kernel clean
 
 run: image
@@ -13,8 +15,8 @@ efi: always
 	$(MAKE) -C bootx/ BUILD_DIR=$(BUILD_DIR)
 
 kernel: always
-	$(MAKE) -C kernel/ BUILD_DIR=$(BUILD_DIR) ROOT_DIR=$(ROOT_DIR)
-
+	$(MAKE) -C kernel/ BUILD_DIR=$(BUILD_DIR) ROOT_DIR=$(ROOT_DIR) log=$(log)
+ 
 always: $(BUILD_DIR) $(ROOT_DIR)
 
 $(BUILD_DIR):

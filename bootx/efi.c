@@ -300,15 +300,18 @@ DISK_FILE* FindVXFS(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
             return NULL;
         }
 
+        if (biop->Media->BlockSize != 512)
+        {
+            printf_c16(u"Iregular block size: %lu",biop->Media->BlockSize);
+                }
+
         if (!memcmp(buffer,VXFS_HEADER,4))
         {
             VXFS_SUPERBLOCK* superblock = (VXFS_SUPERBLOCK*)buffer;
-            if (!memcmp(superblock->Label,"Vortex",6))
-            {
-                DISK_FILE* diskfile = CreateDiskFile(biop);
+            DISK_FILE* diskfile = CreateDiskFile(biop);
 
-                return diskfile;
-            }
+            return diskfile;
+
         }
     }
 
@@ -318,7 +321,6 @@ DISK_FILE* FindVXFS(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
 
 VXFS_INODE GetInode(EFI_STATUS* status,VXFS_SUPERBLOCK* superblock,uint64_t InodeID,uint64_t InodeTableID,DISK_FILE* file)
 {
-
     fseek(file,superblock->InodeTablesStart + InodeTableID * superblock->InodeTableSize + (InodeID * superblock->InodeSize) / 512);
 
     VXFS_INODE* inodes = NULL;
@@ -354,7 +356,12 @@ VXFS_INODE GetInode(EFI_STATUS* status,VXFS_SUPERBLOCK* superblock,uint64_t Inod
 
 VXFS_EXTENT GetExtent(EFI_STATUS* status,VXFS_SUPERBLOCK* superblock,uint64_t ExtentID,uint64_t ExtentTableID,DISK_FILE* file)
 {
-    fseek(file,superblock->ExtentTableStart + ExtentTableID * superblock->ExtentTableSize + (ExtentID * superblock->ExtentSize) / 512);
+    UINT64 extentOffset = ExtentID * superblock->ExtentSize;
+    UINT64 sector = superblock->ExtentTableStart +
+                    ExtentTableID * superblock->ExtentTableSize +
+                    extentOffset / 512;
+
+    fseek(file, sector);
     VXFS_EXTENT* extents = NULL;
     *status = bs->AllocatePool(EfiLoaderData,512,(VOID**)&extents);
     if (EFI_ERROR(*status))
@@ -372,11 +379,11 @@ VXFS_EXTENT GetExtent(EFI_STATUS* status,VXFS_SUPERBLOCK* superblock,uint64_t Ex
         while(1) {}
     }
 
-    UINTN InodesPerSector = 512 / superblock->InodeSize;
+    UINTN ExtentsPerSector = 512 / superblock->ExtentSize;
 
-    for (UINTN i = 0; i < InodesPerSector; i++)
+    for (UINTN i = 0; i < ExtentsPerSector; i++)
     {
-        if (extents[i].ExtentID == ExtentID && extents[i].ExtentTableID == ExtentTableID) return extents[i];
+        if (extents[i].ExtentID == ExtentID && extents[i].ExtentTableID == ExtentTableID && extents[i].Availible == false) return extents[i];
     }
 
     *status = EFI_NOT_FOUND;
@@ -386,15 +393,17 @@ VXFS_EXTENT GetExtent(EFI_STATUS* status,VXFS_SUPERBLOCK* superblock,uint64_t Ex
 
 VXFS_DIRENTRY GetDirEntry(EFI_STATUS* status, VXFS_EXTENT extent, DISK_FILE* file, const char* Name)
 {
+    printf_c16(u"Extent: %lu,%lu\r\n",extent.StartSector,extent.SizeInSectors);
     for (UINT64 block = 0; block < extent.SizeInSectors; block++)
     {
+    
         // Seek to the block (convert LBA to byte offset)
         fseek(file, (extent.StartSector + block));
 
         UINT8 Buffer[512];
-        if (EFI_ERROR(fread(Buffer, 512, file)))
+        *status = fread(Buffer, 512, file);
+        if (EFI_ERROR(*status))
         {
-            *status = EFI_NOT_FOUND;
             return (VXFS_DIRENTRY){0};
         }
 
@@ -659,9 +668,11 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
     Initilize(SystemTable);
     //Maybe do some dualbooting stuff hea
 
+
     DISK_FILE* vxfspartition = FindVXFS(ImageHandle,SystemTable);
     if (vxfspartition == NULL)
     {
+        printf_c16(u"Failed to find VXFS");
         //Recovery code?
         while(1) {}
     }
@@ -683,12 +694,14 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         while(1) {};
     }
 
+
     if (memcmp(superblock->Header,VXFS_HEADER,4))
     {
         printf_c16(u"Corrupt superblock %s\r\n",superblock->Header);
         // Recovery code?
         while(1){}
     }
+
     //Get Root Inode
     VXFS_INODE rootnode = GetInode(&status,superblock,superblock->RootInodeID,0,vxfspartition);
     if (status == EFI_NOT_FOUND)
@@ -697,6 +710,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         // Recovery code?
         while(1){}
     }
+
 
     //Get Root Extent
     VXFS_EXTENT rootextent = GetExtent(&status,superblock,rootnode.ExtentID,rootnode.ExtentTableID,vxfspartition);
@@ -707,14 +721,20 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         while(1){}
     }
 
+    printf_c16(u"Root extent start=%llu size=%llu\n\r",
+    rootextent.StartSector,
+    rootextent.SizeInSectors);
+
+
     //Find System dir
     VXFS_DIRENTRY SystemDirEntry = GetDirEntry(&status,rootextent,vxfspartition,"system");
-    if (status == EFI_NOT_FOUND)
+    if (EFI_ERROR(status) || SystemDirEntry.NameLenght != strlen("system"))
     {
-        printf_c16(u"Failed to find system directory\r\n");
+        printf_c16(u"Failed to find system directory %s\r\n",GetEFIError(status));
         // Recovery code?
         while(1){}
     }
+
 
     //Find System Inode
     VXFS_INODE SystemInode = GetInode(&status,superblock,SystemDirEntry.InodeID,SystemDirEntry.InodeTableID,vxfspartition);
@@ -724,6 +744,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         // Recovery code?
         while(1){}
     }
+
     //Find System Extent
     VXFS_EXTENT SystemExtent = GetExtent(&status,superblock,SystemInode.ExtentID,SystemInode.ExtentTableID,vxfspartition);
     if (status == EFI_NOT_FOUND)
@@ -733,14 +754,16 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         while(1){}
     }
 
+
     //Find kernel dir entry in system
     VXFS_DIRENTRY KernelDirEntry = GetDirEntry(&status,SystemExtent,vxfspartition,"kernel");
     if (status == EFI_NOT_FOUND || KernelDirEntry.NameLenght != strlen("kernel"))
     {
-        printf_c16(u"Failed to find kernel\r\n");
+        printf_c16(u"Failed to find kernel %s\r\n",GetEFIError(status));
         // Recovery code?
         while(1){}
     }
+
 
     VXFS_INODE KernelInode = GetInode(&status,superblock,KernelDirEntry.InodeID,KernelDirEntry.InodeTableID,vxfspartition);
     if (status == EFI_NOT_FOUND)
@@ -750,13 +773,15 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         while(1){}
     }
 
+
     VXFS_DIRENTRY DatDirEntry = GetDirEntry(&status,SystemExtent,vxfspartition,"dat");
     if (status == EFI_NOT_FOUND || DatDirEntry.NameLenght != strlen("dat"))
     {
-        printf_c16(u"Failed to find dat folder\r\n");
+        printf_c16(u"Failed to find dat folder: %s\r\n",GetEFIError(status));
         // Recovery code?
         while(1){}
     }
+
 
     VXFS_INODE DatInode = GetInode(&status,superblock,DatDirEntry.InodeID,DatDirEntry.InodeTableID,vxfspartition);
     if (status == EFI_NOT_FOUND)
@@ -765,6 +790,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         // Recovery code?
         while(1){}
     }
+
 
     VXFS_EXTENT DatExtent = GetExtent(&status,superblock,DatInode.ExtentID,DatInode.ExtentTableID,vxfspartition);
     if (status == EFI_NOT_FOUND)
@@ -782,6 +808,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         while(1){}
     }
 
+
     VXFS_INODE BootFontInode = GetInode(&status,superblock,BootFontDirEntry.InodeID,BootFontDirEntry.InodeTableID,vxfspartition);
     if (status == EFI_NOT_FOUND)
     {
@@ -797,7 +824,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         // Recovery code?
         while(1){}
     }
-
+    
     VOID* fontdata = LoadFileFromVXFS(&status,BootFontExtent,vxfspartition);
     if (fontdata == NULL)
     {
@@ -805,6 +832,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         //Recovery code?
         while(1){}
     }
+
 
     PSF1_FONT* font = LoadFont(fontdata);
 
@@ -825,6 +853,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         //Recovery code?
         while(1){}
     }
+
     
     //Load kernel
     VOID* kernelEntryPoint = LoadELF(&status,kerneldata);
@@ -835,7 +864,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         //reboot
         while(1){}
     }
-    
+
     //Load Font
     //Get Framebuffer
     //Get MemoryMap
@@ -845,6 +874,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
     FRAMEBUFFER* framebuffer = NULL;
     status = bs->AllocatePool(EfiLoaderData,sizeof(FRAMEBUFFER),(VOID**)&framebuffer);
     GetFramebuffer(framebuffer);
+
 
     UINTN MapSize = 0,MapKey = 0,DescriptorSize = 0;
     UINT32 DescriptorVersion = 0;
@@ -868,12 +898,13 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
     info.framebuffer = framebuffer;
     info.font = font;
 
-
+    printf_c16(u"Gere");
     //Call kernel
-    cout->ClearScreen(cout);
-    void (*kernel_start)(bootinfo_t) = ((__attribute__((sysv_abi)) void (*)(bootinfo_t) ) kernelEntryPoint);
+    void (__attribute__((sysv_abi)) *kernel_start)(bootinfo_t*) =
+    (void (__attribute__((sysv_abi)) *)(bootinfo_t*)) kernelEntryPoint;
 
-    kernel_start(info);
+    bs->ExitBootServices(ImageHandle,MapKey);
+    kernel_start(&info);
 
     while(1) {}
     return status;

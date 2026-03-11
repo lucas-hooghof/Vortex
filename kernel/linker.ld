@@ -17,6 +17,14 @@ SECTIONS
         *(.rodata*)     
     } :rodata
 
+    .init_array ALIGN(8) :
+    {
+        __init_array_start = .;
+        KEEP(*(.init_array))
+        KEEP(*(.init_array.*))
+        __init_array_end = .;
+    } :rodata
+
     
     .data : ALIGN(0x1000)
     {

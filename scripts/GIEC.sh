@@ -63,7 +63,8 @@ echo "Cleaning up..."
 sudo umount /tmp/esp
 rmdir /tmp/esp
 
-sudo mkVXFS $LOOP_P2 -L Vortexs
+sudo mkVXFS $LOOP_P2 -L Vortex
+
 
 if [ -n "$ROOT_DIR" ] && [ -d "$ROOT_DIR" ]; then
     echo "Populating VXFS partition from $ROOT_DIR..."

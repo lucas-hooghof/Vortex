@@ -31,4 +31,4 @@ $(EFIOBJ): $(EFISRC) always
 always: $(BUILD_DIR)/bootloader
 
 $(BUILD_DIR)/bootloader:
-	mkdir $(BUILD_DIR)/bootloader
+	mkdir -p $(BUILD_DIR)/bootloader
