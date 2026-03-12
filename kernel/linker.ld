@@ -1,10 +1,10 @@
 /* linker.ld - Kernel ELF linker script */
-
+OUTPUT_FORMAT(elf64-x86-64)
 ENTRY(_start)          /* Entry point symbol from assembly */
 
 SECTIONS
 {
-
+    
     . = 0x200000;
     .text : ALIGN(0x1000)
     {
@@ -42,11 +42,14 @@ SECTIONS
         __init_array_end = .;
     } :rodata
 
-    .stack ALIGN(16) : {
-        __stack_start__ = .;
-        . += 0x10000;  /* 64 KiB stack */
-        __stack_end = .;
-    }: stack
+    .stack ALIGN(0x1000) :
+    {
+        __stack_bottom = .;       /* guard page — 1 page */
+        . += 0x1000;
+        __stack_start__ = .;      /* usable stack begins */
+        . += 0x10000;             /* 64KiB */
+        __stack_end = .;          /* RSP points here */
+    } :stack
 
     /DISCARD/ : { *(.note*) *(.comment*) }
 }
@@ -57,5 +60,5 @@ PHDRS
     text  PT_LOAD FLAGS(5);  /* Executable, readable */
     data  PT_LOAD FLAGS(6);  /* Writable, readable */
     rodata PT_LOAD FLAGS(4); /* Read-only, readable */
-    stack PT_NULL  FLAGS(6);
+    stack PT_LOAD  FLAGS(6);
 }

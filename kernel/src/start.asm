@@ -19,9 +19,6 @@ _start:
     rep stosb
     pop rdi
 
-    mov rsp,__stack_end
-    mov rbp,__stack_end
-
     call kernel_main
 
     cli

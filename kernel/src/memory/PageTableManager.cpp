@@ -24,53 +24,55 @@ void PageTableManager::MapMemory(void* virtualMemory, void* physicalMemory){
 
     PDE = PML4->entries[PDP_i];
     PageTable* PDP;
-    if (!PDE.Present){
+    if (!PDE.Present) {
         PDP = (PageTable*)PageAllocater::GetInstance()->RequestPage();
         memset(PDP, 0, 0x1000);
-        PDE.Address = (uint64_t)PDP >> 12;
-        PDE.Present = true;
+        PDE.Address   = (uint64_t)PDP >> 12;
+        PDE.Present   = true;
         PDE.ReadWrite = true;
         PML4->entries[PDP_i] = PDE;
-    }
-    else
-    {
+    } else {
         PDP = (PageTable*)((uint64_t)PDE.Address << 12);
+        PDE.ReadWrite = true;                // ← add this
+        PML4->entries[PDP_i] = PDE;          // ← write it back
     }
-    
-    
+
+    // PDP → PD
     PDE = PDP->entries[PD_i];
     PageTable* PD;
-    if (!PDE.Present){
+    if (!PDE.Present) {
         PD = (PageTable*)PageAllocater::GetInstance()->RequestPage();
         memset(PD, 0, 0x1000);
-        PDE.Address = (uint64_t)PD >> 12;
-        PDE.Present = true;
+        PDE.Address   = (uint64_t)PD >> 12;
+        PDE.Present   = true;
         PDE.ReadWrite = true;
         PDP->entries[PD_i] = PDE;
-    }
-    else
-    {
+    } else {
         PD = (PageTable*)((uint64_t)PDE.Address << 12);
+        PDE.ReadWrite = true;                // ← add this
+        PDP->entries[PD_i] = PDE;           // ← write it back
     }
 
+    // PD → PT
     PDE = PD->entries[PT_i];
     PageTable* PT;
-    if (!PDE.Present){
+    if (!PDE.Present) {
         PT = (PageTable*)PageAllocater::GetInstance()->RequestPage();
         memset(PT, 0, 0x1000);
-        PDE.Address = (uint64_t)PT >> 12;
-        PDE.Present = true;
+        PDE.Address   = (uint64_t)PT >> 12;
+        PDE.Present   = true;
         PDE.ReadWrite = true;
         PD->entries[PT_i] = PDE;
-    }
-    else
-    {
+    } else {
         PT = (PageTable*)((uint64_t)PDE.Address << 12);
+        PDE.ReadWrite = true;                // ← add this
+        PD->entries[PT_i] = PDE;            // ← write it back
     }
 
+    // PT → Page (final entry, always overwrite)
     PDE = PT->entries[P_i];
-    PDE.Address = (uint64_t)physicalMemory >> 12;
-    PDE.Present = true;
+    PDE.Address   = (uint64_t)physicalMemory >> 12;
+    PDE.Present   = true;
     PDE.ReadWrite = true;
     PT->entries[P_i] = PDE;
 }
