@@ -38,7 +38,7 @@ all: $(KERNEL_OUT)
 $(KERNEL_OUT): $(OBJS) linker.ld
 	@mkdir -p $(dir $@)
 	$(LD) $(LDFLAGS) -o $@ $(OBJS)
-
+	@mkdir -p $(ROOT_DIR)/system 
 	mv $(KERNEL_OUT) $(ROOT_DIR)/system/kernel
 
 # Compile C files

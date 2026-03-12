@@ -31,10 +31,9 @@ void Logger::putc(char c)
         if (s_y + s_font->psf1_Header->charsize > s_framebuffer->Height)
         {
             Scroll();
-            s_y--;
-            return;
+            // s_y stays where it is — it's already pointing at the 
+            // last line which Scroll() just cleared
         }
-
         return;
     }
     if (c == '\t')
@@ -51,7 +50,7 @@ void Logger::putc(char c)
 
     if (s_y + s_font->psf1_Header->charsize > s_framebuffer->Height)
     {
-        Scroll();
+        //Scroll();
         s_y--;
     }
 
@@ -60,11 +59,11 @@ void Logger::putc(char c)
 
     for (size_t yoff = s_y; yoff < s_y +s_font->psf1_Header->charsize; yoff++)
     {
-        if (s_y + yoff >= s_framebuffer->Height) break;
+        if (yoff >= s_framebuffer->Height) break;
 
         for (size_t xoff = s_x; xoff < s_x + 8; xoff++)
         {
-            if (s_x + xoff >= s_framebuffer->Width) break;
+            if (xoff >= s_framebuffer->Width) break;
 
             if (*fontptr & (0b10000000 >> (xoff - s_x)))
             {
@@ -81,21 +80,17 @@ void Logger::putc(char c)
 
 void Logger::Scroll()
 {
-    uint32_t rows_to_move = s_framebuffer->Height - 16;
+    uint32_t charsize = s_font->psf1_Header->charsize;
+    uint32_t rows_to_move = s_framebuffer->Height - charsize;
 
-    uint32_t *src = (uint32_t*)((uint64_t)s_framebuffer->BaseAddress + 16 * s_framebuffer->PixelsPerScanLine);
-    uint32_t *dst = (uint32_t*)s_framebuffer->BaseAddress;
+    uint32_t* src = (uint32_t*)((uint64_t)s_framebuffer->BaseAddress + charsize * s_framebuffer->PixelsPerScanLine * sizeof(uint32_t) / sizeof(uint32_t));
+    uint32_t* dst = (uint32_t*)s_framebuffer->BaseAddress;
 
-    size_t bytes = rows_to_move * s_framebuffer->PixelsPerScanLine * sizeof(uint32_t);
+    memcpy(dst, src, rows_to_move * s_framebuffer->PixelsPerScanLine * sizeof(uint32_t));
 
-    memcpy(dst, src, bytes);
-
-    // clear bottom area
-    uint32_t *clear = (uint32_t*)((uint64_t)s_framebuffer->BaseAddress + rows_to_move * s_framebuffer->PixelsPerScanLine);
-    size_t clear_pixels = 16 * s_framebuffer->PixelsPerScanLine;
-
-    for (size_t i = 0; i < clear_pixels; i++)
-        clear[i] = 0;
+    // clear bottom row
+    uint32_t* clear = (uint32_t*)((uint64_t)s_framebuffer->BaseAddress + rows_to_move * s_framebuffer->PixelsPerScanLine);
+    memset(clear, 0, charsize * s_framebuffer->PixelsPerScanLine * sizeof(uint32_t));
 }
 
 void Logger::putc_dbg(char c)
