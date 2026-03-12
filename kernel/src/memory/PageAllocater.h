@@ -14,6 +14,8 @@ public:
     void* RequestPage();
     void FreePage(void* page);
 
+    void* RequestPages(size_t pagecount);
+    void FreePages(void* page,size_t pagecount);
 
     void ReservePage(void* page);
     void ReservePages(void* page,size_t count);

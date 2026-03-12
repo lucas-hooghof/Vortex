@@ -155,3 +155,44 @@ void PageAllocater::FreePage(void* page)
 {
     UnlockPage(page);
 }
+
+void* PageAllocater::RequestPages(size_t pagecount)
+{
+    size_t concurrentpages = 0;
+    for (; NextIndex < TotalPageCount; NextIndex++)
+    {
+        if (!m_bitmap[NextIndex])
+        {
+            concurrentpages++;
+        }
+
+        if (concurrentpages == pagecount)
+        {
+            LockPages((void*)(NextIndex * 4096),pagecount);
+            return (void*)(NextIndex * 4096);
+        }
+    }
+    concurrentpages = 0;
+    NextIndex = 0;
+    for (; NextIndex < TotalPageCount; NextIndex++)
+    {
+        if (!m_bitmap[NextIndex])
+        {
+            concurrentpages++;
+        }
+
+        if (concurrentpages == pagecount)
+        {
+            LockPages((void*)(NextIndex * 4096),pagecount);
+            return (void*)(NextIndex * 4096);
+        }
+    }
+}
+
+void PageAllocater::FreePages(void* page,size_t pagecount)
+{
+    for (size_t p = 0; p < pagecount; p++)
+    {
+        FreePage((void*)((uint64_t)page + pagecount * 4096));
+    }
+}
