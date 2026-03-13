@@ -3,6 +3,8 @@
 #include <generic/kernelInit.h>
 #include <interrupts/ISR.h>
 
+#include <interrupts/APIC/LAPIC.h>
+
 extern void (*__init_array_start[])();
 extern void (*__init_array_end[])();
 
@@ -36,5 +38,7 @@ extern "C" void __attribute__((noreturn)) kernel_main(bootinfo_t* info)
         while (1) {}
     }
     Logger::Log("Interrupts Initilized\n",LOG_LEVEL::INFO);
+    LAPIC lapic;
+    lapic.Initilize();
     while (1) {}
 }
