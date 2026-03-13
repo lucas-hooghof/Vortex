@@ -29,5 +29,3 @@ struct IDTGate
 extern IDTGate IDT[IDT_ENTRY_COUNT];
 
 void idt_set_descriptor(uint8_t interrupt,uint16_t segment,uint8_t Attributes,uint8_t IST,void* ISR);
-
-extern "C" void LoadIDT(IDT_R* idtr);

@@ -9,6 +9,9 @@
 #define ISR_WITH_ERROR 10
 #define ISR_WITHOUT_ERROR IDT_ENTRY_COUNT - ISR_WITH_ERROR
 
+#include <generic/stdio.h>
+#include <generic/string.h>
+
 
 static uint8_t isr_code_no_err[] = {
     // push dummy error code
@@ -84,7 +87,7 @@ static uint8_t isr_code_no_err[] = {
 };
 
 static uint8_t isr_code_err[] = {
-    // push dummy error code
+    // cpu push error code
     0x6A, 0x01,                // push 1
 
     // push general-purpose registers
@@ -155,15 +158,119 @@ static uint8_t isr_code_err[] = {
     0x48, 0xCF              // iretq
 };
 
-uint8_t* ISRTable = nullptr;
+constexpr size_t ISRTableSize = (10 * sizeof(isr_code_err)) + (246 * sizeof(isr_code_no_err));
+uint8_t ISRTable[ISRTableSize];
 
 bool InitilizeISR()
 {
-    constexpr size_t ISRTableSize = (ISR_WITH_ERROR * sizeof(isr_code_err)) + (ISR_WITHOUT_ERROR * sizeof(isr_code_no_err));
-    ISRTable = (uint8_t*)PageAllocater::GetInstance()->RequestPages((ISRTableSize + 4095) / 4096);
+    for (size_t i = 0; i < IDT_ENTRY_COUNT; i++)
+    {
+        GenerateISR(i);
+    }
+    return true;
+}
+
+static uint8_t* ISRWritePtr = ISRTable;
+static bool ISRAdded[IDT_ENTRY_COUNT] = {0};
+static ISRHandler Handles[IDT_ENTRY_COUNT] = {nullptr};
+
+static bool HasErrorCode(uint8_t interrupt)
+{
+    switch(interrupt)
+    {
+        case 0x8:
+        case 0xA:
+        case 0xB:
+        case 0xC:
+        case 0xD:
+        case 0xE:
+        case 0x11:
+        case 0x15:
+        case 0x1D:
+        case 0x1E:
+            return true;
+        default:
+            return false;
+    }
+}
+
+void __attribute__((noreturn)) panic(ISR_INTERRUPT_FRAME* frame, const char* Name)
+{
+    asm volatile("cli");
+
+    Logger::Log("========== KERNEL PANIC ==========\n", LOG_LEVEL::ERROR);
+    Logger::Log("Exception: %s\n", LOG_LEVEL::ERROR, Name);
+
+    Logger::Log("Interrupt: %u  ErrorCode: %u\n",
+                LOG_LEVEL::ERROR,
+                frame->interrupt, frame->errorcode);
+
+    Logger::Log("RIP=%x  CS=%x  RFLAGS=%x RSP=%x SS=%x\n",
+                LOG_LEVEL::ERROR,
+                frame->rip, frame->cs, frame->rflags,frame->rsp, frame->ss);
+
+
+    Logger::Log("RAX=%x RBX=%x RCX=%x RDX=%x\n",
+                LOG_LEVEL::ERROR,
+                frame->rax, frame->rbx, frame->rcx, frame->rdx);
+
+    Logger::Log("RSI=%x RDI=%x RBP=%x\n",
+                LOG_LEVEL::ERROR,
+                frame->rsi, frame->rdi, frame->rbp);
+
+    Logger::Log("R8=%x  R9=%x  R10=%x  R11=%x\n",
+                LOG_LEVEL::ERROR,
+                frame->r8, frame->r9, frame->r10, frame->r11);
+
+    Logger::Log("R12=%x R13=%x R14=%x R15=%x\n",
+                LOG_LEVEL::ERROR,
+                frame->r12, frame->r13, frame->r14, frame->r15);
+
+    Logger::Log("DS=%x\n", LOG_LEVEL::ERROR, frame->ds);
+
+    Logger::Log("System halted.", LOG_LEVEL::ERROR);
+
+    while (true)
+        asm volatile("hlt");
+}
+
+void isr_handler(ISR_INTERRUPT_FRAME* frame)
+{
+    if (Handles[frame->interrupt] != nullptr)
+    {
+        Handles[frame->interrupt](frame);
+    }
+    else 
+    {
+        panic(frame,"Unhandled Interrupt");
+    }
 }
 
 void GenerateISR(uint8_t interrupt)
 {
+    uint8_t* dest = ISRWritePtr;
+    if (ISRAdded[interrupt]) return;
+    idt_set_descriptor(interrupt,0x08,RING0_INTERRUPT_GATE,0,dest);
+    ISRAdded[interrupt] = true;
+    if (HasErrorCode(interrupt))
+    {
+        memcpy(dest, isr_code_err, sizeof(isr_code_err));
 
+        dest[ISR_CODE_ERROR_INTERRUPT_NUMBER] = interrupt;
+
+        *(uint64_t*)(dest + ISR_CODE_ERROR_CALL_HANDLER_OFFSET) = (uint64_t)isr_handler;
+
+        ISRWritePtr += sizeof(isr_code_err);
+    }
+    else
+    {
+        memcpy(dest, isr_code_no_err, sizeof(isr_code_no_err));
+
+        dest[ISR_CODE_NO_ERROR_INTERRUPT_NUMBER] = interrupt;
+
+        *(uint64_t*)(dest + ISR_CODE_NO_ERROR_CALL_HANDLER_OFFSET) =
+            (uint64_t)isr_handler;
+
+        ISRWritePtr += sizeof(isr_code_no_err);
+    }
 }

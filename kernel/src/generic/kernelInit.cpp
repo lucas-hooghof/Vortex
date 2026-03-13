@@ -4,6 +4,9 @@
 #include <memory/GDT.h>
 #include <memory/PageTableManager.h>
 
+#include <interrupts/IDT.h>
+#include <interrupts/ISR.h>
+
 bool PrepareMemory(bootinfo_t* info)
 {
     PageAllocater PA;
@@ -36,6 +39,11 @@ bool PrepareMemory(bootinfo_t* info)
         }
     }
 
+    for (uint64_t fb = 0; fb < (info->framebuffer->BufferSize + 4095) / 4096; fb++)
+    {
+        PTM.MapMemory((void*)((uint64_t)info->framebuffer->BaseAddress + fb * 4096),(void*)((uint64_t)info->framebuffer->BaseAddress + fb * 4096));
+    }
+
     // Activate new page table
     asm volatile ("mov %0, %%cr3" : : "r" (PML4));
 
@@ -44,6 +52,19 @@ bool PrepareMemory(bootinfo_t* info)
     gdtr.Offset = (uint64_t)&g_GDT;
 
     LoadGDT(&gdtr);
+
+    return true;
+}
+
+bool PrepareInterrupts()
+{
+    IDT_R idtr;
+    idtr.Size = sizeof(IDT) - 1;
+    idtr.Offset = (uint64_t)&IDT;
+
+    asm volatile ("lidt %0" : : "m"(idtr));
+    InitilizeISR();
+    asm volatile ("sti");
 
     return true;
 }

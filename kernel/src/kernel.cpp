@@ -1,6 +1,7 @@
 #include <generic/stdio.h>
 
 #include <generic/kernelInit.h>
+#include <interrupts/ISR.h>
 
 extern void (*__init_array_start[])();
 extern void (*__init_array_end[])();
@@ -27,7 +28,13 @@ extern "C" void __attribute__((noreturn)) kernel_main(bootinfo_t* info)
         Logger::Log("Failed to initilize memory",LOG_LEVEL::ERROR);
         while(1) {}
     }
-    Logger::DebugLog("Memory Management Initilized\n", LOG_LEVEL::INFO);
+    Logger::Log("Memory Management Initilized\n", LOG_LEVEL::INFO);
 
+    if (!PrepareInterrupts())
+    {
+        Logger::Log("Failed to initilize Interrupts",LOG_LEVEL::ERROR);
+        while (1) {}
+    }
+    Logger::Log("Interrupts Initilized\n",LOG_LEVEL::INFO);
     while (1) {}
 }

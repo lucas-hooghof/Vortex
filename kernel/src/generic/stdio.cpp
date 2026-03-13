@@ -45,13 +45,13 @@ void Logger::putc(char c)
     if (s_x + 8 > s_framebuffer->Width) 
     {
         s_x = 0;
-        s_y++;
+        s_y+=16;
     }
 
     if (s_y + s_font->psf1_Header->charsize > s_framebuffer->Height)
     {
         //Scroll();
-        s_y--;
+        s_y-=16;
     }
 
     uint8_t* fontptr = (uint8_t*)s_font->glyphBuffer + (c * s_font->psf1_Header->charsize);

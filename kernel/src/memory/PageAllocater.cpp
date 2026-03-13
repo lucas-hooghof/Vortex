@@ -1,5 +1,7 @@
 #include <memory/PageAllocater.h>
 
+
+#include <generic/stdio.h>
 PageAllocater* PageAllocater::s_Instance = nullptr;
 
 void PageAllocater::Initilize(bootinfo_t* info)
@@ -159,35 +161,50 @@ void PageAllocater::FreePage(void* page)
 void* PageAllocater::RequestPages(size_t pagecount)
 {
     size_t concurrentpages = 0;
+    size_t start_page = NextIndex;
     for (; NextIndex < TotalPageCount; NextIndex++)
     {
+        if (!m_bitmap[NextIndex] && concurrentpages == 0) start_page = NextIndex;
         if (!m_bitmap[NextIndex])
         {
             concurrentpages++;
         }
+        if (m_bitmap[NextIndex])
+        {
+            concurrentpages = 0;
+        }
 
         if (concurrentpages == pagecount)
         {
-            LockPages((void*)(NextIndex * 4096),pagecount);
-            return (void*)(NextIndex * 4096);
+            LockPages((void*)(start_page * 4096),pagecount);
+            Logger::DebugLog("Pages: %x\n",LOG_LEVEL::INFO,start_page * 4096);
+            return (void*)(start_page * 4096);
         }
     }
     concurrentpages = 0;
     NextIndex = 0;
     for (; NextIndex < TotalPageCount; NextIndex++)
     {
+        if (!m_bitmap[NextIndex] && concurrentpages == 0) start_page = NextIndex;
         if (!m_bitmap[NextIndex])
         {
             concurrentpages++;
         }
+        if (m_bitmap[NextIndex])
+        {
+            concurrentpages = 0;
+        }
 
         if (concurrentpages == pagecount)
         {
-            LockPages((void*)(NextIndex * 4096),pagecount);
-            return (void*)(NextIndex * 4096);
+            LockPages((void*)(start_page * 4096),pagecount);
+            return (void*)(start_page * 4096);
         }
     }
+    Logger::DebugLog("Failed to find pages\n",LOG_LEVEL::ERROR);
+    return nullptr;
 }
+
 
 void PageAllocater::FreePages(void* page,size_t pagecount)
 {
