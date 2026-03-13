@@ -274,3 +274,8 @@ void GenerateISR(uint8_t interrupt)
         ISRWritePtr += sizeof(isr_code_no_err);
     }
 }
+
+void RegisterHandler(uint8_t IntteruptNumber,ISRHandler handler)
+{
+    Handles[IntteruptNumber] = handler;
+}

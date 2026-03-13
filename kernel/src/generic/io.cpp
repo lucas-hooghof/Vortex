@@ -5,6 +5,23 @@ void outb(uint16_t port,uint8_t val)
     asm volatile ("outb %b0,%w1" : : "a"(val), "Nd"(port) : "memory");
 }
 
+void io_wait()
+{
+    asm volatile ("outb %%al, $0x80" : : "a"(0));
+}
+
+uint64_t rdtsc()
+{
+    uint32_t lo,hi;
+
+    asm volatile (
+        "rdtsc"
+        : "=a"(lo), "=d"(hi)
+    );
+
+    return ((uint64_t)hi << 32) | lo;
+}
+
 uint64_t readmsr(uint32_t msr)
 {
     uint32_t lo, hi;
@@ -16,6 +33,17 @@ uint64_t readmsr(uint32_t msr)
     );
 
     return ((uint64_t)hi << 32) | lo;
+}
+
+void writemsr(uint32_t msr,uint64_t val)
+{
+    uint32_t low  = (uint32_t)val;
+    uint32_t high = (uint32_t)(val >> 32);
+    asm volatile (
+        "wrmsr"
+        :
+        : "c"(msr), "a"(low), "d"(high)
+    );
 }
 
 void cpuid(uint32_t eaxrequest,

@@ -3,8 +3,12 @@
 #include <generic/stdint.h>
 
 void outb(uint16_t port,uint8_t value);
+void io_wait();
 
 uint64_t readmsr(uint32_t msr);
+void writemsr(uint32_t msr,uint64_t val);
+
+uint64_t rdtsc();
 
 enum cpuid_requests {
   CPUID_GETVENDORSTRING,

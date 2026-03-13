@@ -40,5 +40,6 @@ extern "C" void __attribute__((noreturn)) kernel_main(bootinfo_t* info)
     Logger::Log("Interrupts Initilized\n",LOG_LEVEL::INFO);
     LAPIC lapic;
     lapic.Initilize();
+    lapic.InitilizeLAPICTimer();
     while (1) {}
 }

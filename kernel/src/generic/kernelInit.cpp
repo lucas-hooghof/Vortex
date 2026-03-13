@@ -6,6 +6,7 @@
 
 #include <interrupts/IDT.h>
 #include <interrupts/ISR.h>
+#include <interrupts/APIC/LAPIC.h>
 
 bool PrepareMemory(bootinfo_t* info)
 {
@@ -64,6 +65,7 @@ bool PrepareInterrupts()
 
     asm volatile ("lidt %0" : : "m"(idtr));
     InitilizeISR();
+    
     asm volatile ("sti");
 
     return true;

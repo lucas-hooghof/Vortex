@@ -21,5 +21,7 @@ typedef void (*ISRHandler)(ISR_INTERRUPT_FRAME* frame);
 bool InitilizeISR();
 void GenerateISR(uint8_t IntteruptNumber);
 
+void RegisterHandler(uint8_t IntteruptNumber,ISRHandler handler);
+
 void __attribute__((noreturn)) panic(ISR_INTERRUPT_FRAME* frame,const char* Name);
 void isr_handler(ISR_INTERRUPT_FRAME* frame);
