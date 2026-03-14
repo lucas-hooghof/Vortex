@@ -5,74 +5,66 @@
 
 PageTableManager* PageTableManager::s_Instance = nullptr;
 
-void PageTableManager::Initilize(PageTable* PML4Address){
+void PageTableManager::Initilize(void* PML4Address){
     s_Instance = this;
     this->PML4 = PML4Address;
 }
+void PageTableManager::MapMemory(void* virtualMemory, void* physicalMemory, uint8_t flags)
+{
+    uint64_t vaddr = (uint64_t)virtualMemory;
 
-void PageTableManager::MapMemory(void* virtualMemory, void* physicalMemory){
-    uint64_t virtualAddress = (uint64_t)virtualMemory;
-    virtualAddress >>= 12;
-    uint64_t P_i = virtualAddress & 0x1ff;
-    virtualAddress >>= 9;
-    uint64_t PT_i = virtualAddress & 0x1ff;
-    virtualAddress >>= 9;
-    uint64_t PD_i = virtualAddress & 0x1ff;
-    virtualAddress >>= 9;
-    uint64_t PDP_i = virtualAddress & 0x1ff;
-    PageDirectoryEntry PDE;
+    uint64_t pml4_i = (vaddr >> 39) & 0x1FF;
+    uint64_t pdpt_i = (vaddr >> 30) & 0x1FF;
+    uint64_t pd_i   = (vaddr >> 21) & 0x1FF;
+    uint64_t pt_i   = (vaddr >> 12) & 0x1FF;
 
-    PDE = PML4->entries[PDP_i];
-    PageTable* PDP;
-    if (!PDE.Present) {
-        PDP = (PageTable*)PageAllocater::GetInstance()->RequestPage();
-        memset(PDP, 0, 0x1000);
-        PDE.Address   = (uint64_t)PDP >> 12;
-        PDE.Present   = true;
-        PDE.ReadWrite = true;
-        PML4->entries[PDP_i] = PDE;
-    } else {
-        PDP = (PageTable*)((uint64_t)PDE.Address << 12);
-        PDE.ReadWrite = true;                // ← add this
-        PML4->entries[PDP_i] = PDE;          // ← write it back
+    uint64_t* PML4 = (uint64_t*)this->PML4;
+
+    // ---------- PML4 → PDPT ----------
+    if (!(PML4[pml4_i] & 1))
+    {
+        uint64_t* new_pdpt = (uint64_t*)PageAllocater::GetInstance()->RequestPage();
+        memset(new_pdpt, 0, 0x1000);
+
+        PML4[pml4_i] = ((uint64_t)new_pdpt) | 0b11;
+    }
+    else
+    {
+        PML4[pml4_i] |= 0b10; // ensure RW
     }
 
-    // PDP → PD
-    PDE = PDP->entries[PD_i];
-    PageTable* PD;
-    if (!PDE.Present) {
-        PD = (PageTable*)PageAllocater::GetInstance()->RequestPage();
-        memset(PD, 0, 0x1000);
-        PDE.Address   = (uint64_t)PD >> 12;
-        PDE.Present   = true;
-        PDE.ReadWrite = true;
-        PDP->entries[PD_i] = PDE;
-    } else {
-        PD = (PageTable*)((uint64_t)PDE.Address << 12);
-        PDE.ReadWrite = true;                // ← add this
-        PDP->entries[PD_i] = PDE;           // ← write it back
+    uint64_t* PDPT = (uint64_t*)(PML4[pml4_i] & 0xFFFFFFFFFFFFF000);
+
+    // ---------- PDPT → PD ----------
+    if (!(PDPT[pdpt_i] & 1))
+    {
+        uint64_t* new_pd = (uint64_t*)PageAllocater::GetInstance()->RequestPage();
+        memset(new_pd, 0, 0x1000);
+
+        PDPT[pdpt_i] = ((uint64_t)new_pd) | 0b11;
+    }
+    else
+    {
+        PDPT[pdpt_i] |= 0b10;
     }
 
-    // PD → PT
-    PDE = PD->entries[PT_i];
-    PageTable* PT;
-    if (!PDE.Present) {
-        PT = (PageTable*)PageAllocater::GetInstance()->RequestPage();
-        memset(PT, 0, 0x1000);
-        PDE.Address   = (uint64_t)PT >> 12;
-        PDE.Present   = true;
-        PDE.ReadWrite = true;
-        PD->entries[PT_i] = PDE;
-    } else {
-        PT = (PageTable*)((uint64_t)PDE.Address << 12);
-        PDE.ReadWrite = true;                // ← add this
-        PD->entries[PT_i] = PDE;            // ← write it back
+    uint64_t* PD = (uint64_t*)(PDPT[pdpt_i] & 0xFFFFFFFFFFFFF000);
+
+    // ---------- PD → PT ----------
+    if (!(PD[pd_i] & 1))
+    {
+        uint64_t* new_pt = (uint64_t*)PageAllocater::GetInstance()->RequestPage();
+        memset(new_pt, 0, 0x1000);
+
+        PD[pd_i] = ((uint64_t)new_pt) | 0b11;
+    }
+    else
+    {
+        PD[pd_i] |= 0b10;
     }
 
-    // PT → Page (final entry, always overwrite)
-    PDE = PT->entries[P_i];
-    PDE.Address   = (uint64_t)physicalMemory >> 12;
-    PDE.Present   = true;
-    PDE.ReadWrite = true;
-    PT->entries[P_i] = PDE;
+    uint64_t* PT = (uint64_t*)(PD[pd_i] & 0xFFFFFFFFFFFFF000);
+
+    // ---------- PT → PAGE ----------
+    PT[pt_i] = ((uint64_t)physicalMemory & 0xFFFFFFFFFFFFF000) | flags;
 }

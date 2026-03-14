@@ -6,6 +6,8 @@ SECTIONS
 {
     
     . = 0x200000;
+
+    _KernelStart = .;
     .text : ALIGN(0x1000)
     {
         *(.text*)    
@@ -46,10 +48,12 @@ SECTIONS
     {
         __stack_bottom = .;       /* guard page — 1 page */
         . += 0x1000;
-        __stack_start__ = .;      /* usable stack begins */
+        __stack_start = .;      /* usable stack begins */
         . += 0x10000;             /* 64KiB */
         __stack_end = .;          /* RSP points here */
     } :stack
+
+    _KernelEnd = .;
 
     /DISCARD/ : { *(.note*) *(.comment*) }
 }
