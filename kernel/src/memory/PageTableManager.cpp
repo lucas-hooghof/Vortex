@@ -12,7 +12,7 @@ void PageTableManager::Initilize(void* PML4)
     s_Instance = this;
 }
 
-void PageTableManager::MapMemory(void* va, void* pa, uint8_t flags)
+void PageTableManager::MapMemory(void* va, void* pa, uint64_t flags)
 {
     uint64_t v = (uint64_t)va;
     uint64_t p = (uint64_t)pa & 0x000FFFFFFFFFF000;
@@ -57,4 +57,5 @@ void PageTableManager::MapMemory(void* va, void* pa, uint8_t flags)
         pt = (uint64_t*)(pd[pd_i] & 0x000FFFFFFFFFF000);
 
     pt[pt_i] = p | flags;
+
 }

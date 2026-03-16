@@ -3,6 +3,7 @@
 #include <generic/stdio.h>
 
 #include <memory/PageAllocater.h>
+#include <generic/string.h>
 #include <memory/PageTableManager.h>
 
 
@@ -29,10 +30,11 @@ bool PrepareMemory(bootinfo_t* info)
 
     PA.LockPages(&_KernelStart,kernelPages);
     PA.LockPages(info->framebuffer->BaseAddress,(info->framebuffer->BufferSize + 4095) / 4096);
-    
+
     PageTableManager ptm;
 
     uint64_t* pml4 =(uint64_t*) PA.RequestPage();
+    memset((void*)pml4,0,4096); 
     ptm.Initilize((void*)pml4);
 
     Logger::DebugLog("PML4: %x\n",LOG_LEVEL::INFO,(uint64_t)pml4);
@@ -57,7 +59,7 @@ bool PrepareMemory(bootinfo_t* info)
 
     for (uint64_t t = (uint64_t)&_KernelStart; t < (uint64_t)&_KernelStart + kernelSize; t += 4096)
     {
-        ptm.MapMemory((void*)t,(void*)t,PAGE_RW | PAGE_PRESENT);
+        ptm.MapMemory((void*)t,(void*)t,PAGE_PRESENT | PAGE_RW);
     }
 
     uint64_t start = (uint64_t)&__stack_bottom;

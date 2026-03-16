@@ -27,7 +27,7 @@ public:
 
     void Initilize(void* PML4);
 
-    void MapMemory(void* va,void* pa,uint8_t flags);
+    void MapMemory(void* va,void* pa,uint64_t flags);
 
     static PageTableManager* GetInstance() { return s_Instance; }
 private:
