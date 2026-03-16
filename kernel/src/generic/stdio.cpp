@@ -9,6 +9,8 @@ FRAMEBUFFER* Logger::s_framebuffer = nullptr;
 PSF1_FONT* Logger::s_font = nullptr;
 uint32_t Logger::s_x = 0;
 uint32_t Logger::s_y = 0;
+uint32_t Logger::Foregroundcolor = 0;
+uint32_t Logger::BackGroundColor = 0;
 
  
 void Logger::Initilize(bootinfo_t *info)
@@ -16,6 +18,17 @@ void Logger::Initilize(bootinfo_t *info)
     s_framebuffer = info->framebuffer;
     s_font = info->font;
     memset(s_framebuffer->BaseAddress,0,s_framebuffer->BufferSize);
+    Foregroundcolor = 0xFFFFFFFF;
+    BackGroundColor = 0x00000000;
+    memset(s_framebuffer->BaseAddress,BackGroundColor,s_framebuffer->BufferSize);
+}
+
+void Logger::ClearScreen(uint32_t foregroundColor,uint32_t backgroundColor)
+{
+    Foregroundcolor = foregroundColor;
+    BackGroundColor = backgroundColor;
+
+    memset(s_framebuffer->BaseAddress,BackGroundColor,s_framebuffer->BufferSize);
 }
 
 void Logger::putc(char c)
@@ -67,7 +80,11 @@ void Logger::putc(char c)
 
             if (*fontptr & (0b10000000 >> (xoff - s_x)))
             {
-                fb[xoff +  yoff * s_framebuffer->PixelsPerScanLine] = 0x00FFFFFF;
+                fb[xoff +  yoff * s_framebuffer->PixelsPerScanLine] = Foregroundcolor;
+            }
+            else 
+            {
+                fb[xoff +  yoff * s_framebuffer->PixelsPerScanLine] = BackGroundColor;
             }
         
         }

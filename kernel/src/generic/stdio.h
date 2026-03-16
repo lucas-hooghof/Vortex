@@ -16,6 +16,7 @@ class Logger
 {
     public:
         static void Initilize(bootinfo_t *info);
+        static void ClearScreen(uint32_t ForegroundColor,uint32_t BackgroundColor);
 
         static void Log(const char* fmt,LOG_LEVEL level,...);
 
@@ -36,4 +37,7 @@ class Logger
 
         static uint32_t s_x;
         static uint32_t s_y;
+
+        static uint32_t Foregroundcolor;
+        static uint32_t BackGroundColor;
 };

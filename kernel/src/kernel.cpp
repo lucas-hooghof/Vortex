@@ -24,5 +24,11 @@ extern "C" void __attribute__((noreturn)) kernel_main(bootinfo_t* info)
         while(1) {}
     }
     Logger::Log("Memory Management Initilized\n", LOG_LEVEL::INFO);
+
+    if (!PrepareInterrupts())
+    {
+        Logger::Log("Failed to initilize interrupts",LOG_LEVEL::ERROR);
+        while(1) {}
+    }
     while (1) {}
 }

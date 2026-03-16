@@ -1,10 +1,13 @@
 #include <generic/kernelInit.h>
-
+#include <generic/string.h>
 #include <generic/stdio.h>
 
 #include <memory/PageAllocater.h>
-#include <generic/string.h>
 #include <memory/PageTableManager.h>
+#include <memory/GDT.h>
+
+#include <interrupts/ISR.h>
+#include <interrupts/IDT.h>
 
 
 extern uint64_t _KernelStart;
@@ -69,6 +72,28 @@ bool PrepareMemory(bootinfo_t* info)
         ptm.MapMemory((void*)addr, (void*)addr, PAGE_PRESENT | PAGE_RW);
     }
     asm volatile ("mov %0,%%cr3" : : "r"(pml4));
+
+    GDTR gdtr = {0,0};
+
+    gdtr.Size = sizeof(g_GDT) - 1;
+    gdtr.Offset = (uint64_t)&g_GDT;
+
+    LoadGDT(&gdtr);
+
+    return true;
+}
+
+bool PrepareInterrupts()
+{
+    IDT_R idtr = {0,0};
+    idtr.Size = sizeof(IDT) - 1;
+    idtr.Offset = (uint64_t)&IDT;
+
+    asm volatile ("lidt %0" : : "m"(idtr));
+    if(!InitilizeISR()) { return false; }
+    asm volatile ("sti");
+
+    asm volatile ("int $0x0");
 
     return true;
 }
