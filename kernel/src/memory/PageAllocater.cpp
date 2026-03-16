@@ -36,7 +36,8 @@ void PageAllocater::Initilize(bootinfo_t* info)
     TotalPageCount = memorysize / 4096;
 
     m_bitmap.bitmap = (uint8_t*)LargestSegement;
-    m_bitmap.size = LargestSegmentSize;
+    size_t bitmapSizeNeeded = (memorysize / 4096) / 8 + 1;
+    m_bitmap.size = bitmapSizeNeeded;
 
     for (size_t entry = 0; entry < MapEntries; entry++)
     {
@@ -52,6 +53,9 @@ void PageAllocater::Initilize(bootinfo_t* info)
             UnreservePages((void*)mapentry->PhysicalStart,mapentry->NumberOfPages);
         }
     }
+
+    size_t bitmapPages = (m_bitmap.size / 4096) + 1;
+    LockPages(m_bitmap.bitmap, bitmapPages);
 
     LockPages(0,0x100);
 }
@@ -206,10 +210,8 @@ void* PageAllocater::RequestPages(size_t pagecount)
 }
 
 
-void PageAllocater::FreePages(void* page,size_t pagecount)
+void PageAllocater::FreePages(void* page, size_t pagecount)
 {
     for (size_t p = 0; p < pagecount; p++)
-    {
-        FreePage((void*)((uint64_t)page + pagecount * 4096));
-    }
+        FreePage((void*)((uint64_t)page + pagecount * 4096)); // should be p, not pagecount
 }

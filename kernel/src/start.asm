@@ -8,6 +8,9 @@ extern __bss_end
 extern __stack_end
 
 _start:
+    mov rsp,__stack_end
+    mov rbp,rsp
+
 
     ;BSS clear
     push rdi
@@ -18,9 +21,6 @@ _start:
     mov rdi,__bss_start
     rep stosb
     pop rdi
-
-    mov rsp,__stack_end
-    mov rbp,rsp
 
     call kernel_main
 

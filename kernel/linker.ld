@@ -10,9 +10,7 @@ SECTIONS
     _KernelStart = .;
     .text : ALIGN(0x1000)
     {
-        *(.text*)    
-        KEEP(*(.ctors))          
-        KEEP(*(.init_array))   
+        *(.text*)      
     } :text
 
     

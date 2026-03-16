@@ -1,70 +1,60 @@
-#include "PageTableManager.h"
-#include <generic/stdint.h>
-#include <generic/string.h>
+#include <memory/PageTableManager.h>
+
 #include <memory/PageAllocater.h>
+#include <generic/string.h>
 
 PageTableManager* PageTableManager::s_Instance = nullptr;
 
-void PageTableManager::Initilize(void* PML4Address){
-    s_Instance = this;
-    this->PML4 = PML4Address;
-}
-void PageTableManager::MapMemory(void* virtualMemory, void* physicalMemory, uint8_t flags)
+void PageTableManager::Initilize(void* PML4)
 {
-    uint64_t vaddr = (uint64_t)virtualMemory;
+    this->PML4 = (uint64_t*)PML4;
 
-    uint64_t pml4_i = (vaddr >> 39) & 0x1FF;
-    uint64_t pdpt_i = (vaddr >> 30) & 0x1FF;
-    uint64_t pd_i   = (vaddr >> 21) & 0x1FF;
-    uint64_t pt_i   = (vaddr >> 12) & 0x1FF;
+    s_Instance = this;
+}
 
-    uint64_t* PML4 = (uint64_t*)this->PML4;
+void PageTableManager::MapMemory(void* va, void* pa, uint8_t flags)
+{
+    uint64_t v = (uint64_t)va;
+    uint64_t p = (uint64_t)pa & 0x000FFFFFFFFFF000;
 
-    // ---------- PML4 → PDPT ----------
-    if (!(PML4[pml4_i] & 1))
+    uint64_t pml4_i = PML4_INDEX(v);
+    uint64_t pdpt_i = PDPT_INDEX(v);
+    uint64_t pd_i   = PD_INDEX(v);
+    uint64_t pt_i   = PT_INDEX(v);
+
+    uint64_t* pdpt;
+    uint64_t* pd;
+    uint64_t* pt;
+
+    if (!(PML4[pml4_i] & PAGE_PRESENT))
     {
-        uint64_t* new_pdpt = (uint64_t*)PageAllocater::GetInstance()->RequestPage();
-        memset(new_pdpt, 0, 0x1000);
+        pdpt = (uint64_t*)PageAllocater::GetInstance()->RequestPage();
+        memset(pdpt, 0, 4096);
 
-        PML4[pml4_i] = ((uint64_t)new_pdpt) | 0b11;
+        PML4[pml4_i] = ((uint64_t)pdpt & 0x000FFFFFFFFFF000) | PAGE_PRESENT | PAGE_RW;
     }
     else
+        pdpt = (uint64_t*)(PML4[pml4_i] & 0x000FFFFFFFFFF000);
+
+    if (!(pdpt[pdpt_i] & PAGE_PRESENT))
     {
-        PML4[pml4_i] |= 0b10; // ensure RW
-    }
+        pd = (uint64_t*)PageAllocater::GetInstance()->RequestPage();
+        memset(pd, 0, 4096);
 
-    uint64_t* PDPT = (uint64_t*)(PML4[pml4_i] & 0xFFFFFFFFFFFFF000);
-
-    // ---------- PDPT → PD ----------
-    if (!(PDPT[pdpt_i] & 1))
-    {
-        uint64_t* new_pd = (uint64_t*)PageAllocater::GetInstance()->RequestPage();
-        memset(new_pd, 0, 0x1000);
-
-        PDPT[pdpt_i] = ((uint64_t)new_pd) | 0b11;
+        pdpt[pdpt_i] = ((uint64_t)pd & 0x000FFFFFFFFFF000) | PAGE_PRESENT | PAGE_RW;
     }
     else
+        pd = (uint64_t*)(pdpt[pdpt_i] & 0x000FFFFFFFFFF000);
+
+    if (!(pd[pd_i] & PAGE_PRESENT))
     {
-        PDPT[pdpt_i] |= 0b10;
-    }
+        pt = (uint64_t*)PageAllocater::GetInstance()->RequestPage();
+        memset(pt, 0, 4096);
 
-    uint64_t* PD = (uint64_t*)(PDPT[pdpt_i] & 0xFFFFFFFFFFFFF000);
-
-    // ---------- PD → PT ----------
-    if (!(PD[pd_i] & 1))
-    {
-        uint64_t* new_pt = (uint64_t*)PageAllocater::GetInstance()->RequestPage();
-        memset(new_pt, 0, 0x1000);
-
-        PD[pd_i] = ((uint64_t)new_pt) | 0b11;
+        pd[pd_i] = ((uint64_t)pt & 0x000FFFFFFFFFF000) | PAGE_PRESENT | PAGE_RW;
     }
     else
-    {
-        PD[pd_i] |= 0b10;
-    }
+        pt = (uint64_t*)(pd[pd_i] & 0x000FFFFFFFFFF000);
 
-    uint64_t* PT = (uint64_t*)(PD[pd_i] & 0xFFFFFFFFFFFFF000);
-
-    // ---------- PT → PAGE ----------
-    PT[pt_i] = ((uint64_t)physicalMemory & 0xFFFFFFFFFFFFF000) | flags;
+    pt[pt_i] = p | flags;
 }
