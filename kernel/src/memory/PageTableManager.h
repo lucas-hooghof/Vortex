@@ -3,17 +3,16 @@
 #include <generic/stdint.h>
 #include <generic/stdio.h>
 
-#define PAGE_PRESENT  (1 << 0)
-#define PAGE_RW       (1 << 1)
-#define PAGE_US       (1 << 2)
-#define PAGE_PWT      (1 << 3)
-#define PAGE_PCD      (1 << 4)
-#define PAGE_ACCESSED (1 << 5)
-#define PAGE_DIRTY    (1 << 6)
-#define PAGE_2MB      (1 << 7)
-#define PAGE_GLOBAL   (1 << 8)
-
-#define PAGE_NX       (1 << 63)
+#define PAGE_PRESENT  (1ULL << 0)
+#define PAGE_RW       (1ULL << 1)
+#define PAGE_US       (1ULL << 2)
+#define PAGE_PWT      (1ULL << 3)
+#define PAGE_PCD      (1ULL << 4)
+#define PAGE_ACCESSED (1ULL << 5)
+#define PAGE_DIRTY    (1ULL << 6)
+#define PAGE_2MB      (1ULL << 7)
+#define PAGE_GLOBAL   (1ULL << 8)
+#define PAGE_NX       (1ULL << 63)
 
 #define PML4_INDEX(x) (((uint64_t)(x) >> 39) & 0x1FF)
 #define PDPT_INDEX(x) (((uint64_t)(x) >> 30) & 0x1FF)

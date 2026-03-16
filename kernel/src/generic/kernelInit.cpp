@@ -60,9 +60,16 @@ bool PrepareMemory(bootinfo_t* info)
         ptm.MapMemory((void*)((uint64_t)info->framebuffer->BaseAddress + fbpage * 4096),(void*)((uint64_t)info->framebuffer->BaseAddress + fbpage * 4096),PAGE_PRESENT | PAGE_RW | PAGE_PWT | PAGE_PCD);
     }
 
-    for (uint64_t t = (uint64_t)&_KernelStart; t < (uint64_t)&_KernelStart + kernelSize; t += 4096)
+    #define HIGHER_HALF_BASE 0xFFFFFFFF80000000ULL
+
+    uint64_t kernPhys = (uint64_t)&_KernelStart;
+    uint64_t kernVirt = HIGHER_HALF_BASE; // must match your linker script
+
+    for (uint64_t offset = 0; offset < kernelSize; offset += 4096)
     {
-        ptm.MapMemory((void*)t,(void*)t,PAGE_PRESENT | PAGE_RW);
+        ptm.MapMemory((void*)(kernVirt + offset),
+                    (void*)(kernPhys + offset),
+                    PAGE_PRESENT | PAGE_RW);
     }
 
     uint64_t start = (uint64_t)&__stack_bottom;

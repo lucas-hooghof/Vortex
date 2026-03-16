@@ -498,88 +498,211 @@ memset (void *dest, register int val, register size_t len)
   return dest;
 }
 
-VOID* LoadELF(EFI_STATUS* status, VOID* elfdata)
+#define HIGHER_HALF_BASE  0xFFFFFFFF80000000ULL
+#define PAGE_PRESENT      (1ULL << 0)
+#define PAGE_WRITE        (1ULL << 1)
+#define PAGE_SIZE_2MB     (1ULL << 7)   // for 2 MiB pages in PD
+
+// ─── Page table types ────────────────────────────────────────────────────────
+typedef UINT64 PT_ENTRY;
+
+typedef struct { PT_ENTRY entries[512]; } __attribute__((aligned(0x1000))) PAGE_TABLE;
+
+#define ALLOC_TABLE(ptr) \
+    do { \
+        EFI_PHYSICAL_ADDRESS _pa = 0; \
+        *status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &_pa); \
+        if (EFI_ERROR(*status)) { \
+            printf_c16(u"Failed to alloc page table: %s\r\n", GetEFIError(*status)); \
+            while(1){} \
+        } \
+        (ptr) = (PAGE_TABLE*)(UINTN)_pa; \
+        memset((ptr), 0, sizeof(PAGE_TABLE)); \
+    } while(0)
+
+EFI_PHYSICAL_ADDRESS SetupHigherHalfPaging(
+    EFI_STATUS*          status,
+    EFI_PHYSICAL_ADDRESS physBase,
+    UINTN                physSize,
+    UINT64               virtBase)
+{
+    PAGE_TABLE *pml4, *pdpt_high, *pd_high, *pdpt_id, *pd_id;
+
+    ALLOC_TABLE(pml4);
+    ALLOC_TABLE(pdpt_high);
+    ALLOC_TABLE(pd_high);
+    ALLOC_TABLE(pdpt_id);
+    ALLOC_TABLE(pd_id);
+
+    UINT64 pml4_idx = (virtBase >> 39) & 0x1FF;
+    UINT64 pdpt_idx = (virtBase >> 30) & 0x1FF;
+    UINT64 pd_idx   = (virtBase >> 21) & 0x1FF;
+    UINT64 pt_idx   = (virtBase >> 12) & 0x1FF;
+
+    pml4->entries[pml4_idx]      = (UINT64)(UINTN)pdpt_high | PAGE_PRESENT | PAGE_WRITE;
+    pdpt_high->entries[pdpt_idx] = (UINT64)(UINTN)pd_high   | PAGE_PRESENT | PAGE_WRITE;
+
+    // How many 4K pages we need
+    UINTN pages4k = (physSize + 0xFFF) / 0x1000;
+
+    UINT64 current_pd_idx = pd_idx;
+    UINT64 current_pt_idx = pt_idx;
+    PAGE_TABLE* current_pt = NULL;
+
+    for (UINTN i = 0; i < pages4k; i++)
+    {
+        // Allocate a new PT whenever we move to a new PD entry
+        if (current_pt == NULL || (i > 0 && current_pt_idx == 0))
+        {
+            ALLOC_TABLE(current_pt);
+            pd_high->entries[current_pd_idx] = 
+                (UINT64)(UINTN)current_pt | PAGE_PRESENT | PAGE_WRITE;
+            current_pd_idx++;
+        }
+
+        current_pt->entries[current_pt_idx] =
+            (physBase + (UINT64)i * 0x1000) | PAGE_PRESENT | PAGE_WRITE;
+
+        current_pt_idx = (current_pt_idx + 1) & 0x1FF;
+    }
+
+    // Identity map 0..1 GiB with 2 MiB pages (keeping this as 2MB is fine)
+    pml4->entries[0]    = (UINT64)(UINTN)pdpt_id | PAGE_PRESENT | PAGE_WRITE;
+    pdpt_id->entries[0] = (UINT64)(UINTN)pd_id   | PAGE_PRESENT | PAGE_WRITE;
+
+    for (UINTN i = 0; i < 512; i++)
+    {
+        pd_id->entries[i] =
+            ((UINT64)i * 2 * 1024 * 1024) | PAGE_PRESENT | PAGE_WRITE | PAGE_SIZE_2MB;
+    }
+
+    return (EFI_PHYSICAL_ADDRESS)(UINTN)pml4;
+}
+
+void MapRegion(
+    EFI_STATUS*   status,
+    PAGE_TABLE*   pml4,
+    UINT64        virtAddr,
+    UINT64        physAddr,
+    UINTN         size,
+    UINT64        flags)
+{
+    UINTN pages = (size + 0xFFF) / 0x1000;
+
+    for (UINTN i = 0; i < pages; i++)
+    {
+        UINT64 va = virtAddr + (UINT64)i * 0x1000;
+        UINT64 pa = physAddr + (UINT64)i * 0x1000;
+
+        UINT64 pml4_idx = (va >> 39) & 0x1FF;
+        UINT64 pdpt_idx = (va >> 30) & 0x1FF;
+        UINT64 pd_idx   = (va >> 21) & 0x1FF;
+        UINT64 pt_idx   = (va >> 12) & 0x1FF;
+
+        // PML4 → PDPT
+        if (!(pml4->entries[pml4_idx] & PAGE_PRESENT))
+        {
+            EFI_PHYSICAL_ADDRESS pdpt_pa = 0x3FFFFFFF;
+            *status = bs->AllocatePages(AllocateMaxAddress, EfiLoaderData, 1, &pdpt_pa);
+            if (EFI_ERROR(*status)) { printf_c16(u"MapRegion: alloc pdpt failed\r\n"); while(1){} }
+            memset((void*)(UINTN)pdpt_pa, 0, 4096);
+            pml4->entries[pml4_idx] = pdpt_pa | PAGE_PRESENT | PAGE_WRITE;
+        }
+        PAGE_TABLE* pdpt = (PAGE_TABLE*)(UINTN)(pml4->entries[pml4_idx] & 0x000FFFFFFFFFF000);
+
+        // PDPT → PD
+        if (!(pdpt->entries[pdpt_idx] & PAGE_PRESENT))
+        {
+            EFI_PHYSICAL_ADDRESS pd_pa = 0x3FFFFFFF;
+            *status = bs->AllocatePages(AllocateMaxAddress, EfiLoaderData, 1, &pd_pa);
+            if (EFI_ERROR(*status)) { printf_c16(u"MapRegion: alloc pd failed\r\n"); while(1){} }
+            memset((void*)(UINTN)pd_pa, 0, 4096);
+            pdpt->entries[pdpt_idx] = pd_pa | PAGE_PRESENT | PAGE_WRITE;
+        }
+        PAGE_TABLE* pd = (PAGE_TABLE*)(UINTN)(pdpt->entries[pdpt_idx] & 0x000FFFFFFFFFF000);
+
+        // Check if this PD entry is a 2MB page (from identity map), skip if so
+        if (pd->entries[pd_idx] & PAGE_SIZE_2MB)
+            continue;
+
+        // PD → PT
+        if (!(pd->entries[pd_idx] & PAGE_PRESENT))
+        {
+            EFI_PHYSICAL_ADDRESS pt_pa = 0x3FFFFFFF;
+            *status = bs->AllocatePages(AllocateMaxAddress, EfiLoaderData, 1, &pt_pa);
+            if (EFI_ERROR(*status)) { printf_c16(u"MapRegion: alloc pt failed\r\n"); while(1){} }
+            memset((void*)(UINTN)pt_pa, 0, 4096);
+            pd->entries[pd_idx] = pt_pa | PAGE_PRESENT | PAGE_WRITE;
+        }
+        PAGE_TABLE* pt = (PAGE_TABLE*)(UINTN)(pd->entries[pd_idx] & 0x000FFFFFFFFFF000);
+
+        pt->entries[pt_idx] = pa | flags;
+    }
+}
+
+
+VOID* LoadELF(EFI_STATUS* status, VOID* elfdata,
+              EFI_PHYSICAL_ADDRESS* outPhysBase,   // <-- new out-params
+              UINTN*                outPhysSize,
+              UINT64*               outVirtBase)
 {
     Elf64_Ehdr* ehdr = (Elf64_Ehdr*)elfdata;
 
-    // Validate ELF
-    if (memcmp(ehdr->e_ident, (UINT8[4]){0x7F,'E','L','F'}, 4))
-    {
-        *status = EFI_COMPROMISED_DATA;
-        return NULL;
+    if (memcmp(ehdr->e_ident, (UINT8[4]){0x7F,'E','L','F'}, 4)) {
+        *status = EFI_COMPROMISED_DATA; return NULL;
     }
-
-    if (ehdr->e_type != ET_EXEC)
-    {
-        *status = EFI_UNSUPPORTED;
-        return NULL;
+    if (ehdr->e_type != ET_EXEC) {
+        *status = EFI_UNSUPPORTED; return NULL;
     }
 
     Elf64_Phdr* phdrs = (Elf64_Phdr*)((UINT8*)elfdata + ehdr->e_phoff);
 
-    UINT64 min = UINT64_MAX;
-    UINT64 max = 0;
-
-    // Find memory bounds
-    for (UINT16 i = 0; i < ehdr->e_phnum; i++)
-    {
+    UINT64 vmin = UINT64_MAX, vmax = 0;
+    for (UINT16 i = 0; i < ehdr->e_phnum; i++) {
         Elf64_Phdr* ph = &phdrs[i];
-
-        if (ph->p_type != PT_LOAD)
-            continue;
-
-        if (ph->p_vaddr < min)
-            min = ph->p_vaddr;
-
+        if (ph->p_type != PT_LOAD) continue;
+        if (ph->p_vaddr < vmin) vmin = ph->p_vaddr;
         UINT64 end = ph->p_vaddr + ph->p_memsz;
-        if (end > max)
-            max = end;
+        if (end > vmax) vmax = end;
     }
+    if (vmin == UINT64_MAX) { *status = EFI_NOT_FOUND; return NULL; }
 
-    if (min == UINT64_MAX)
-    {
-        *status = EFI_NOT_FOUND;
-        return NULL;
-    }
+    // Strip the higher-half offset to get the physical load address.
+    // Your linker script sets vmin = HIGHER_HALF_BASE + some offset.
+    UINT64 physOffset = vmin - HIGHER_HALF_BASE;   // e.g. 0 if linked at base
 
-    // Page align
-    UINT64 aligned_min = min & ~0xFFFULL;
-    UINT64 aligned_max = (max + 0xFFF) & ~0xFFFULL;
+    UINT64 aligned_vmin = vmin  & ~0xFFFULL;
+    UINT64 aligned_vmax = (vmax + 0xFFFULL) & ~0xFFFULL;
+    UINTN  size         = aligned_vmax - aligned_vmin;
+    UINTN  pages        = size / 0x1000;
 
-    UINTN pages = (aligned_max - aligned_min) / 0x1000;
+    // Allocate physical memory (anywhere UEFI likes)
+    EFI_PHYSICAL_ADDRESS physBase = 0x200000; // hint; AllocateAnyPages ignores it
+    *status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, pages, &physBase);
+    if (EFI_ERROR(*status)) return NULL;
 
-    EFI_PHYSICAL_ADDRESS base = aligned_min;
+    memset((VOID*)(UINTN)physBase, 0, size);
 
-    // Allocate once
-    *status = bs->AllocatePages(
-        AllocateAddress,
-        EfiLoaderData,
-        pages,
-        &base
-    );
-
-    if (EFI_ERROR(*status))
-        return NULL;
-
-    // Zero entire region first
-    memset((VOID*)aligned_min, 0, aligned_max - aligned_min);
-
-    // Load segments
-    for (UINT16 i = 0; i < ehdr->e_phnum; i++)
-    {
+    // Copy each PT_LOAD segment to its physical location
+    for (UINT16 i = 0; i < ehdr->e_phnum; i++) {
         Elf64_Phdr* ph = &phdrs[i];
+        if (ph->p_type != PT_LOAD) continue;
 
-        if (ph->p_type != PT_LOAD)
-            continue;
-
-        memcpy(
-            (VOID*)ph->p_vaddr,
-            (UINT8*)elfdata + ph->p_offset,
-            ph->p_filesz
-        );
+        // physical dest = physBase + (vaddr - vmin)
+        UINT64 physDest = physBase + (ph->p_vaddr - aligned_vmin);
+        memcpy((VOID*)(UINTN)physDest,
+               (UINT8*)elfdata + ph->p_offset,
+               ph->p_filesz);
     }
 
-    return (VOID*)ehdr->e_entry;
+    // Export info for the paging setup
+    *outPhysBase = physBase;
+    *outPhysSize = size;
+    *outVirtBase = aligned_vmin;
+
+    // Entry point is a virtual address – the kernel will be called through
+    // the higher-half mapping once we switch CR3.
+    return (VOID*)(UINTN)ehdr->e_entry;
 }
 
 typedef struct {
@@ -811,6 +934,7 @@ BOOLEAN guid_equal(EFI_GUID* a, EFI_GUID* b)
     return memcmp(a, b, sizeof(EFI_GUID)) == 0;
 }
 
+
 EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
 {
     Initilize(SystemTable);
@@ -942,12 +1066,25 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
 
     
     //Load kernel
-    VOID* kernelEntryPoint = LoadELF(&status,kerneldata);
-    if (status != EFI_SUCCESS)
-    {
-        printf_c16(u"Failed to load elf: %s\n\r",GetEFIError(status));
+    EFI_PHYSICAL_ADDRESS kernPhysBase = 0;
+    UINTN                kernPhysSize = 0;
+    UINT64               kernVirtBase = 0;
 
-        //reboot
+    VOID* kernelEntryPoint = LoadELF(&status, kerneldata,
+                                    &kernPhysBase,
+                                    &kernPhysSize,
+                                    &kernVirtBase);
+    if (status != EFI_SUCCESS) {
+        printf_c16(u"Failed to load ELF: %s\n\r", GetEFIError(status));
+        while(1){}
+    }
+
+    EFI_PHYSICAL_ADDRESS pml4 = SetupHigherHalfPaging(&status,
+                                                   kernPhysBase,
+                                                   kernPhysSize,
+                                                   kernVirtBase);
+    if (EFI_ERROR(status)) {
+        printf_c16(u"Paging setup failed: %s\n\r", GetEFIError(status));
         while(1){}
     }
 
@@ -962,6 +1099,14 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
     status = bs->AllocatePool(EfiLoaderData,sizeof(FRAMEBUFFER),(VOID**)&framebuffer);
     GetFramebuffer(framebuffer);
     cout->ClearScreen(cout);
+
+    printf_c16(u"Mapping framebuffer: %lx size: %lx\n\r",
+    (UINT64)framebuffer->BaseAddress, framebuffer->BufferSize);
+    MapRegion(&status, pml4,
+        (UINT64)framebuffer->BaseAddress,   // identity map: virt == phys
+        (UINT64)framebuffer->BaseAddress,
+        framebuffer->BufferSize,
+        PAGE_PRESENT | PAGE_WRITE);
 
 
     UINTN MapSize = 0,MapKey = 0,DescriptorSize = 0;
@@ -991,6 +1136,14 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
     (void (__attribute__((sysv_abi)) *)(bootinfo_t*)) kernelEntryPoint;
 
     bs->ExitBootServices(ImageHandle,MapKey);
+
+    __asm__ volatile (
+        "mov %0, %%cr3\n\t"          // load new PML4
+        :
+        : "r"((UINT64)pml4)
+        : "memory"
+    );
+
     kernel_start(&info);
 
     while(1) {}

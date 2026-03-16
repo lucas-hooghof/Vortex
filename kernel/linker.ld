@@ -5,7 +5,7 @@ ENTRY(_start)          /* Entry point symbol from assembly */
 SECTIONS
 {
     
-    . = 0x200000;
+    . = 0xFFFFFFFF80000000;
 
     _KernelStart = .;
     .text : ALIGN(0x1000)
