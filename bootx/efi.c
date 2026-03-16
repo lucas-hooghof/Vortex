@@ -788,6 +788,28 @@ void HexDump(void* buffer, size_t size)
 }
 
 
+void print_guid(EFI_GUID* guid)
+{
+    printf_c16(
+        u"%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x\r\n",
+        guid->Data1,
+        guid->Data2,
+        guid->Data3,
+        (UINT32)guid->Data4[0],
+        (UINT32)guid->Data4[1],
+        (UINT32)guid->Data4[2],
+        (UINT32)guid->Data4[3],
+        (UINT32)guid->Data4[4],
+        (UINT32)guid->Data4[5],
+        (UINT32)guid->Data4[6],
+        (UINT32)guid->Data4[7]
+    );
+}
+
+BOOLEAN guid_equal(EFI_GUID* a, EFI_GUID* b)
+{
+    return memcmp(a, b, sizeof(EFI_GUID)) == 0;
+}
 
 EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
 {
@@ -939,8 +961,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
     FRAMEBUFFER* framebuffer = NULL;
     status = bs->AllocatePool(EfiLoaderData,sizeof(FRAMEBUFFER),(VOID**)&framebuffer);
     GetFramebuffer(framebuffer);
-
-
+    cout->ClearScreen(cout);
 
 
     UINTN MapSize = 0,MapKey = 0,DescriptorSize = 0;

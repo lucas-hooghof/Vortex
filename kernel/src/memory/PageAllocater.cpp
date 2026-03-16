@@ -39,6 +39,9 @@ void PageAllocater::Initilize(bootinfo_t* info)
     size_t bitmapSizeNeeded = (memorysize / 4096) / 8 + 1;
     m_bitmap.size = bitmapSizeNeeded;
 
+    size_t bitmapPages = (m_bitmap.size / 4096) + 1;
+    LockPages(m_bitmap.bitmap, bitmapPages);
+
     for (size_t entry = 0; entry < MapEntries; entry++)
     {
         EFI_MEMORY_DESCRIPTOR* mapentry = (EFI_MEMORY_DESCRIPTOR*)((uint64_t)info->mMap + (entry * info->DescriptorSize));
@@ -53,9 +56,6 @@ void PageAllocater::Initilize(bootinfo_t* info)
             UnreservePages((void*)mapentry->PhysicalStart,mapentry->NumberOfPages);
         }
     }
-
-    size_t bitmapPages = (m_bitmap.size / 4096) + 1;
-    LockPages(m_bitmap.bitmap, bitmapPages);
 
     LockPages(0,0x100);
 }

@@ -17,7 +17,6 @@ extern "C" void __attribute__((noreturn)) kernel_main(bootinfo_t* info)
 {
     call_constructors();
     Logger::Initilize(info);
-
     if (!PrepareMemory(info))
     {
         Logger::Log("Failed to initilize memory",LOG_LEVEL::ERROR);
@@ -30,5 +29,6 @@ extern "C" void __attribute__((noreturn)) kernel_main(bootinfo_t* info)
         Logger::Log("Failed to initilize interrupts",LOG_LEVEL::ERROR);
         while(1) {}
     }
+    Logger::Log("Interrupts Initilized\n",LOG_LEVEL::INFO);
     while (1) {}
 }

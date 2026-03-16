@@ -20,7 +20,9 @@ void Logger::Initilize(bootinfo_t *info)
     memset(s_framebuffer->BaseAddress,0,s_framebuffer->BufferSize);
     Foregroundcolor = 0xFFFFFFFF;
     BackGroundColor = 0x00000000;
-    memset(s_framebuffer->BaseAddress,BackGroundColor,s_framebuffer->BufferSize);
+    uint32_t* fb = (uint32_t*)s_framebuffer->BaseAddress;
+    for (size_t i = 0; i < s_framebuffer->PixelsPerScanLine * s_framebuffer->Height; i++)
+        fb[i] = BackGroundColor;
 }
 
 void Logger::ClearScreen(uint32_t foregroundColor,uint32_t backgroundColor)
@@ -28,7 +30,9 @@ void Logger::ClearScreen(uint32_t foregroundColor,uint32_t backgroundColor)
     Foregroundcolor = foregroundColor;
     BackGroundColor = backgroundColor;
 
-    memset(s_framebuffer->BaseAddress,BackGroundColor,s_framebuffer->BufferSize);
+    uint32_t* fb = (uint32_t*)s_framebuffer->BaseAddress;
+    for (size_t i = 0; i < s_framebuffer->PixelsPerScanLine * s_framebuffer->Height; i++)
+        fb[i] = BackGroundColor;
 }
 
 void Logger::putc(char c)

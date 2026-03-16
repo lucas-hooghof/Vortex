@@ -93,7 +93,5 @@ bool PrepareInterrupts()
     if(!InitilizeISR()) { return false; }
     asm volatile ("sti");
 
-    asm volatile ("int $0x0");
-
     return true;
 }
