@@ -66,6 +66,8 @@ namespace PCI
         uint8_t ProgramInterface;
         uint8_t SubClass;
         uint8_t ClassCode;
+
+        uint8_t padding[6];
     };
 
     class PCI
@@ -74,11 +76,26 @@ namespace PCI
         PCI();
         ~PCI();
 
-        PCIDeviceHeader* GetDevice(uint16_t VendorID,uint16_t DeviceID);
+        PCIDeviceHeader GetDevice(uint16_t VendorID,uint16_t DeviceID);
 
         PCIDevice* GetDeviceHeaders() const { return m_deviceHeaders; }
 
         static PCI* GetInstance() { return s_Instance; }
+
+        static const char* GetVendorID(uint16_t VendorID)
+        {
+            switch(VendorID)
+            {
+                case 0x8086:
+                    return "Intel Corp";
+                case 0x1234:
+                    return "Qemu";
+                case 0x10EC:
+                    return "Realtek Semiconductor Co";
+                default:
+                    return "Unkown";
+            }
+        }
 
     private: 
         void CheckBus(uint8_t bus);

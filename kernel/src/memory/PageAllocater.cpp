@@ -2,6 +2,7 @@
 
 
 #include <generic/stdio.h>
+#include <generic/string.h>
 PageAllocater* PageAllocater::s_Instance = nullptr;
 
 void PageAllocater::Initilize(bootinfo_t* info)
@@ -39,6 +40,14 @@ void PageAllocater::Initilize(bootinfo_t* info)
     size_t bitmapSizeNeeded = (memorysize / 4096) / 8 + 1;
     m_bitmap.size = bitmapSizeNeeded;
 
+    memset(m_bitmap.bitmap, 0, bitmapSizeNeeded);
+
+    if (LargestSegmentSize < bitmapSizeNeeded)
+    {
+        Logger::DebugLog("Bitmap doesn't fit in largest segment!\n", LOG_LEVEL::ERROR);
+        // handle error
+    }
+
     size_t bitmapPages = (m_bitmap.size / 4096) + 1;
     LockPages(m_bitmap.bitmap, bitmapPages);
 
@@ -51,13 +60,14 @@ void PageAllocater::Initilize(bootinfo_t* info)
     for (size_t entry = 0; entry < MapEntries; entry++)
     {
         EFI_MEMORY_DESCRIPTOR* mapentry = (EFI_MEMORY_DESCRIPTOR*)((uint64_t)info->mMap + (entry * info->DescriptorSize));
-        if (mapentry->Type == EfiBootServicesCode || mapentry->Type == EfiBootServicesData || mapentry->Type == EfiConventionalMemory)
+        if (mapentry->Type == EfiConventionalMemory)
         {
             UnreservePages((void*)mapentry->PhysicalStart,mapentry->NumberOfPages);
         }
     }
 
     LockPages(0,0x100);
+
 }
 
 
@@ -95,7 +105,6 @@ void PageAllocater::UnreservePage(void* page)
 
 void PageAllocater::UnreservePages(void* page,size_t count)
 {
-    NextIndex = (uint64_t)page / 4096;
     for (uint64_t pagea = (uint64_t)page; pagea < (uint64_t)page + count * 4096; pagea += 0x1000)
     {
         UnreservePage((void*)pagea);
@@ -131,11 +140,16 @@ void PageAllocater::UnlockPage(void* page)
     UsedRam -= 4096;
     FreeRam += 4096;
 
-    NextIndex = PageIndex;
 }
 
 void* PageAllocater::RequestPage()
 {
+    if (NextIndex > TotalPageCount)
+    {
+        NextIndex = 0;
+    }
+
+
     for (; NextIndex < TotalPageCount; NextIndex++)
     {
         if (!m_bitmap[NextIndex])
@@ -143,6 +157,7 @@ void* PageAllocater::RequestPage()
             LockPage((void*)(NextIndex * 4096));
             return (void*)(NextIndex*4096);
         }
+
     }
     NextIndex = 0;
     for (; NextIndex < TotalPageCount; NextIndex++)
@@ -153,7 +168,6 @@ void* PageAllocater::RequestPage()
             return (void*)(NextIndex*4096);
         }
     }
-
     return nullptr;
 }
 
@@ -198,7 +212,6 @@ void* PageAllocater::RequestPages(size_t pagecount)
                 // Move NextIndex forward (important!)
                 NextIndex = i;
 
-                Logger::DebugLog("Pages: %x\n", LOG_LEVEL::INFO, run_start * 4096);
                 return (void*)(run_start * 4096);
             }
 
@@ -218,5 +231,5 @@ void* PageAllocater::RequestPages(size_t pagecount)
 void PageAllocater::FreePages(void* page, size_t pagecount)
 {
     for (size_t p = 0; p < pagecount; p++)
-        FreePage((void*)((uint64_t)page + pagecount * 4096)); // should be p, not pagecount
+        FreePage((void*)((uint64_t)page + p * 4096)); // should be p, not pagecount
 }

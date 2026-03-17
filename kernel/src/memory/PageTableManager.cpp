@@ -58,4 +58,6 @@ void PageTableManager::MapMemory(void* va, void* pa, uint64_t flags)
 
     pt[pt_i] = p | flags;
 
+    asm volatile("invlpg (%0)" : : "r"(va) : "memory");
+
 }

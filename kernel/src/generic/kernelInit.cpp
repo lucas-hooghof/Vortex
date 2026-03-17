@@ -18,31 +18,31 @@ extern uint64_t __stack_bottom;
 
 uint64_t HHDM = 0;
 
+PageAllocater pa;
+PageTableManager ptm;
+
 bool PrepareMemory(bootinfo_t* info)
 {
-    PageAllocater PA;
-    PA.Initilize(info);
+    pa.Initilize(info);
 
     // Lock framebuffer pages
     for (uint64_t fbpage = 0; fbpage < info->framebuffer->BufferSize / 4096 + 1; fbpage++)
     {
-        PA.LockPage((void*)((uint64_t)info->framebuffer->BaseAddress + fbpage * 4096));
+        pa.LockPage((void*)((uint64_t)info->framebuffer->BaseAddress + fbpage * 4096));
     }
 
 
     uint64_t kernelSize = (uint64_t)&_KernelEnd - (uint64_t)&_KernelStart;
     uint64_t kernelPages = (uint64_t)kernelSize / 4096 + 1;
 
-    PA.LockPages(&_KernelStart,kernelPages);
-    PA.LockPages(info->framebuffer->BaseAddress,(info->framebuffer->BufferSize + 4095) / 4096);
+    pa.LockPages(&_KernelStart,kernelPages);
+    pa.LockPages(info->framebuffer->BaseAddress,(info->framebuffer->BufferSize + 4095) / 4096);
 
-    PageTableManager ptm;
 
-    uint64_t* pml4 =(uint64_t*) PA.RequestPage();
+    uint64_t* pml4 =(uint64_t*) pa.RequestPage();
     memset((void*)pml4,0,4096); 
     ptm.Initilize((void*)pml4);
 
-    Logger::DebugLog("PML4: %x\n",LOG_LEVEL::INFO,(uint64_t)pml4);
 
     for (uint64_t t = 0; t < (info->MapSize / info->DescriptorSize); t++)
     {
