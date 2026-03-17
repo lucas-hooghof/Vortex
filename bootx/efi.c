@@ -841,6 +841,8 @@ typedef struct
     EFI_MEMORY_DESCRIPTOR* mMap;
     UINTN MapSize;
     UINTN DescriptorSize;
+
+    EFI_PHYSICAL_ADDRESS kernelstart;
 }bootinfo_t;
 
 // Print a single PSF1 glyph to the UEFI console as 1s and 0s
@@ -1074,6 +1076,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
                                     &kernPhysBase,
                                     &kernPhysSize,
                                     &kernVirtBase);
+                                    
     if (status != EFI_SUCCESS) {
         printf_c16(u"Failed to load ELF: %s\n\r", GetEFIError(status));
         while(1){}
@@ -1130,6 +1133,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
     info.mMap = map;
     info.framebuffer = framebuffer;
     info.font = font;
+    info.kernelstart = kernPhysBase;
 
     //Call kernel
     void (__attribute__((sysv_abi)) *kernel_start)(bootinfo_t*) =

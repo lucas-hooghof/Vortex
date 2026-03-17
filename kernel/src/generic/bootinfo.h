@@ -61,4 +61,6 @@ typedef struct
     EFI_MEMORY_DESCRIPTOR* mMap;
     uint64_t MapSize;
     uint64_t DescriptorSize;
+
+    uint64_t kernelstart;
 }bootinfo_t;

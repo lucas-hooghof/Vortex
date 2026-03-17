@@ -60,16 +60,10 @@ bool PrepareMemory(bootinfo_t* info)
         ptm.MapMemory((void*)((uint64_t)info->framebuffer->BaseAddress + fbpage * 4096),(void*)((uint64_t)info->framebuffer->BaseAddress + fbpage * 4096),PAGE_PRESENT | PAGE_RW | PAGE_PWT | PAGE_PCD);
     }
 
-    #define HIGHER_HALF_BASE 0xFFFFFFFF80000000ULL
-
-    uint64_t kernPhys = (uint64_t)&_KernelStart;
-    uint64_t kernVirt = HIGHER_HALF_BASE; // must match your linker script
-
-    for (uint64_t offset = 0; offset < kernelSize; offset += 4096)
+    uint64_t Kernelstart = 0xFFFFFFFF80000000ULL;
+    for (uint64_t t = 0; t < kernelPages; t++)
     {
-        ptm.MapMemory((void*)(kernVirt + offset),
-                    (void*)(kernPhys + offset),
-                    PAGE_PRESENT | PAGE_RW);
+        ptm.MapMemory((void*)(Kernelstart + t * 4096),(void*)(info->kernelstart + t * 4096),PAGE_PRESENT | PAGE_RW);
     }
 
     uint64_t start = (uint64_t)&__stack_bottom;
@@ -78,6 +72,21 @@ bool PrepareMemory(bootinfo_t* info)
     {
         ptm.MapMemory((void*)addr, (void*)addr, PAGE_PRESENT | PAGE_RW);
     }
+
+    uint64_t stack_virt_start = (uint64_t)&__stack_bottom;
+    uint64_t stack_virt_end   = (uint64_t)&__stack_end;
+
+    for(uint64_t addr = stack_virt_start; addr < stack_virt_end; addr += 4096)
+    {
+        uint64_t phys = info->kernelstart + (addr - Kernelstart);
+
+        ptm.MapMemory(
+            (void*)addr,
+            (void*)phys,
+            PAGE_PRESENT | PAGE_RW
+        );
+    }
+
     asm volatile ("mov %0,%%cr3" : : "r"(pml4));
 
     GDTR gdtr = {0,0};
