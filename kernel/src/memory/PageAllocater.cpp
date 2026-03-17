@@ -164,48 +164,53 @@ void PageAllocater::FreePage(void* page)
 
 void* PageAllocater::RequestPages(size_t pagecount)
 {
-    size_t concurrentpages = 0;
-    size_t start_page = NextIndex;
-    for (; NextIndex < TotalPageCount; NextIndex++)
+    size_t start = NextIndex;
+
+    // Try full sweep twice (wrap-around)
+    for (int pass = 0; pass < 2; pass++)
     {
-        if (!m_bitmap[NextIndex] && concurrentpages == 0) start_page = NextIndex;
-        if (!m_bitmap[NextIndex])
+        size_t i = start;
+
+        while (i < TotalPageCount)
         {
-            concurrentpages++;
-        }
-        if (m_bitmap[NextIndex])
-        {
-            concurrentpages = 0;
+            // Skip used pages fast
+            if (m_bitmap[i])
+            {
+                i++;
+                continue;
+            }
+
+            // Found free page → check block
+            size_t run_start = i;
+            size_t run_length = 0;
+
+            while (i < TotalPageCount && !m_bitmap[i] && run_length < pagecount)
+            {
+                i++;
+                run_length++;
+            }
+
+            if (run_length == pagecount)
+            {
+                // Allocate block
+                LockPages((void*)(run_start * 4096), pagecount);
+
+                // Move NextIndex forward (important!)
+                NextIndex = i;
+
+                Logger::DebugLog("Pages: %x\n", LOG_LEVEL::INFO, run_start * 4096);
+                return (void*)(run_start * 4096);
+            }
+
+            // Skip past this failed run
+            // (important optimization)
         }
 
-        if (concurrentpages == pagecount)
-        {
-            LockPages((void*)(start_page * 4096),pagecount);
-            Logger::DebugLog("Pages: %x\n",LOG_LEVEL::INFO,start_page * 4096);
-            return (void*)(start_page * 4096);
-        }
+        // Wrap around
+        start = 0;
     }
-    concurrentpages = 0;
-    NextIndex = 0;
-    for (; NextIndex < TotalPageCount; NextIndex++)
-    {
-        if (!m_bitmap[NextIndex] && concurrentpages == 0) start_page = NextIndex;
-        if (!m_bitmap[NextIndex])
-        {
-            concurrentpages++;
-        }
-        if (m_bitmap[NextIndex])
-        {
-            concurrentpages = 0;
-        }
 
-        if (concurrentpages == pagecount)
-        {
-            LockPages((void*)(start_page * 4096),pagecount);
-            return (void*)(start_page * 4096);
-        }
-    }
-    Logger::DebugLog("Failed to find pages\n",LOG_LEVEL::ERROR);
+    Logger::DebugLog("Failed to find pages\n", LOG_LEVEL::ERROR);
     return nullptr;
 }
 

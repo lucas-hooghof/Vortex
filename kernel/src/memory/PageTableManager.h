@@ -19,6 +19,7 @@
 #define PD_INDEX(x)   (((uint64_t)(x) >> 21) & 0x1FF)
 #define PT_INDEX(x)   (((uint64_t)(x) >> 12) & 0x1FF)
 
+
 class PageTableManager
 {
 public:

@@ -5,10 +5,28 @@ void outb(uint16_t port,uint8_t val)
     asm volatile ("outb %b0,%w1" : : "a"(val), "Nd"(port) : "memory");
 }
 
+void outl(uint16_t port, uint32_t value)
+{
+    asm volatile ("outl %0, %1"
+                  :
+                  : "a"(value), "Nd"(port)
+                  : "memory");
+}
+
 void io_wait()
 {
     asm volatile ("outb %%al, $0x80" : : "a"(0));
 }
+
+uint32_t inl(uint16_t port)
+{
+    uint32_t val;
+    asm volatile ("inl %1, %0"
+                  : "=a"(val)
+                  : "Nd"(port));
+    return val;
+}
+
 
 uint64_t rdtsc()
 {

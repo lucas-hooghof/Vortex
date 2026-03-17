@@ -4,6 +4,8 @@
 #include <generic/stdint.h>
 #include <generic/stdio.h>
 
+#include <memory/PageAllocater.h>
+
 
 namespace PCI
 {
@@ -39,5 +41,62 @@ namespace PCI
         uint32_t BAR3;
         uint32_t BAR4;
         uint32_t BAR5;
+        uint32_t CardbusCISPointer;
+        uint16_t SubsystemVendorID;
+        uint16_t SubsystemID;   
+        uint32_t ExpansionROMBaseAddress;
+        uint8_t Capabilities;
+        uint8_t reserved0[3];
+        uint32_t reserved1;
+
+        uint8_t InterruptLine;
+        uint8_t InterruptPin;
+        uint8_t MinGrant;
+        uint8_t MaxLatency;
+    };
+    struct PCIDevice
+    {
+        uint16_t VendorID;
+        uint16_t DeviceID;
+
+        uint8_t bus;
+        uint8_t device;
+        uint8_t function;
+
+        uint8_t ProgramInterface;
+        uint8_t SubClass;
+        uint8_t ClassCode;
+    };
+
+    class PCI
+    {
+    public:
+        PCI();
+        ~PCI();
+
+        PCIDeviceHeader* GetDevice(uint16_t VendorID,uint16_t DeviceID);
+
+        PCIDevice* GetDeviceHeaders() const { return m_deviceHeaders; }
+
+        static PCI* GetInstance() { return s_Instance; }
+
+    private: 
+        void CheckBus(uint8_t bus);
+        void CheckDevice(uint8_t bus,uint8_t device);
+        void CheckFunction(uint8_t bus,uint8_t device,uint8_t function);
+
+        void PanicPCI(const char* reason);
+
+        uint16_t ReadPCIConfigWord(uint8_t bus,uint8_t device,uint8_t function,uint8_t offset);
+    private:
+
+        PCIDevice* m_deviceHeaders;
+
+
+
+        uint32_t m_DeviceHeaderCount;
+        uint32_t m_deviceHeaderPageCount;
+
+        static PCI* s_Instance;
     };
 }

@@ -16,6 +16,8 @@ extern uint64_t __stack_start;
 extern uint64_t __stack_end;
 extern uint64_t __stack_bottom;
 
+uint64_t HHDM = 0;
+
 bool PrepareMemory(bootinfo_t* info)
 {
     PageAllocater PA;
@@ -65,14 +67,7 @@ bool PrepareMemory(bootinfo_t* info)
     {
         ptm.MapMemory((void*)(Kernelstart + t * 4096),(void*)(info->kernelstart + t * 4096),PAGE_PRESENT | PAGE_RW);
     }
-
-    uint64_t start = (uint64_t)&__stack_bottom;
-    uint64_t end   = (uint64_t)&__stack_end;
-    for(uint64_t addr = start; addr < end + 4096; addr += 4096)
-    {
-        ptm.MapMemory((void*)addr, (void*)addr, PAGE_PRESENT | PAGE_RW);
-    }
-
+    
     uint64_t stack_virt_start = (uint64_t)&__stack_bottom;
     uint64_t stack_virt_end   = (uint64_t)&__stack_end;
 
@@ -86,6 +81,8 @@ bool PrepareMemory(bootinfo_t* info)
             PAGE_PRESENT | PAGE_RW
         );
     }
+    
+    HHDM = 0xFFFFFFFF80000000;
 
     asm volatile ("mov %0,%%cr3" : : "r"(pml4));
 
