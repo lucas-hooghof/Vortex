@@ -73,14 +73,13 @@ namespace PCI
     class PCI
     {
     public:
-        PCI();
-        ~PCI();
+        static void Initilize();
+        static void Deinit();
 
-        PCIDeviceHeader GetDevice(uint16_t VendorID,uint16_t DeviceID);
+        static PCIDeviceHeader GetDevice(uint16_t VendorID,uint16_t DeviceID);
+        static void WriteDevice(PCIDeviceHeader header);
 
-        PCIDevice* GetDeviceHeaders() const { return m_deviceHeaders; }
-
-        static PCI* GetInstance() { return s_Instance; }
+        static PCIDevice* GetDeviceHeaders()  { return m_deviceHeaders; }
 
         static const char* GetVendorID(uint16_t VendorID)
         {
@@ -98,22 +97,17 @@ namespace PCI
         }
 
     private: 
-        void CheckBus(uint8_t bus);
-        void CheckDevice(uint8_t bus,uint8_t device);
-        void CheckFunction(uint8_t bus,uint8_t device,uint8_t function);
+        static void CheckBus(uint8_t bus);
+        static void CheckDevice(uint8_t bus,uint8_t device);
+        static void CheckFunction(uint8_t bus,uint8_t device,uint8_t function);
 
-        void PanicPCI(const char* reason);
-
-        uint16_t ReadPCIConfigWord(uint8_t bus,uint8_t device,uint8_t function,uint8_t offset);
+        static void PanicPCI(const char* reason);
+        static uint16_t ReadPCIConfigWord(uint8_t bus,uint8_t device,uint8_t function,uint8_t offset);
+        static void WritePCIConfigWord(uint8_t bus, uint8_t device, uint8_t function, uint8_t offset, uint16_t value);
     private:
+        static PCIDevice* m_deviceHeaders;
+        static uint32_t m_DeviceHeaderCount;
+        static uint32_t m_deviceHeaderPageCount;
 
-        PCIDevice* m_deviceHeaders;
-
-
-
-        uint32_t m_DeviceHeaderCount;
-        uint32_t m_deviceHeaderPageCount;
-
-        static PCI* s_Instance;
     };
 }

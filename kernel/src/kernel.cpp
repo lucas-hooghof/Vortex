@@ -1,7 +1,7 @@
 #include <generic/stdio.h>
 
 #include <generic/kernelInit.h>
-#include <PCI/PCI.h>
+#include <hardware/PCI/PCI.h>
 
 extern void (*__init_array_start[])();
 extern void (*__init_array_end[])();
@@ -34,7 +34,6 @@ extern "C" void __attribute__((noreturn)) kernel_main(bootinfo_t* info)
 
     Logger::Log("%x\n",LOG_LEVEL::INFO,(uint64_t)info->rsdp);
 
-    PCI::PCI pci;
 
     while (1) {}
 }

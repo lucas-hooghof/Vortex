@@ -5,12 +5,13 @@
 
 namespace PCI
 {
-    PCI* PCI::s_Instance = nullptr;
 
-    PCI::PCI()
+    PCIDevice* PCI::m_deviceHeaders = nullptr;
+    uint32_t   PCI::m_DeviceHeaderCount = 0;
+    uint32_t   PCI::m_deviceHeaderPageCount = 0;
+
+    void PCI::Initilize()
     {
-        if (s_Instance) return;
-        s_Instance = this;
         m_deviceHeaderPageCount = 4;
         m_DeviceHeaderCount = 0;
         m_deviceHeaders =  (PCIDevice*)PageAllocater::GetInstance()->RequestPages(m_deviceHeaderPageCount);
@@ -25,7 +26,7 @@ namespace PCI
         }
     }
 
-    PCI::~PCI()
+    void PCI::Deinit()
     {
         PageAllocater::GetInstance()->FreePages((void*)m_deviceHeaders,m_deviceHeaderPageCount);
     }
@@ -96,7 +97,7 @@ namespace PCI
     {
         PCIDeviceHeader header = {};
 
-        for (size_t entry = 0; entry < (m_deviceHeaderPageCount * 4096) / sizeof(PCIDevice); entry++)
+        for (size_t entry = 0; entry < m_DeviceHeaderCount; entry++)
         {
             if (m_deviceHeaders[entry].VendorID == VendorID && m_deviceHeaders[entry].DeviceID == DeviceID)
             {
@@ -164,5 +165,61 @@ namespace PCI
             }
         }
         return header;
+    }
+
+    void PCI::WriteDevice(PCIDeviceHeader header)
+    {
+        // Find matching device
+        for (uint32_t i = 0; i < m_DeviceHeaderCount; i++)
+        {
+            if (m_deviceHeaders[i].VendorID == header.CommonHeader.VendorID &&
+                m_deviceHeaders[i].DeviceID == header.CommonHeader.DeviceID)
+            {
+                uint8_t bus      = m_deviceHeaders[i].bus;
+                uint8_t device   = m_deviceHeaders[i].device;
+                uint8_t function = m_deviceHeaders[i].function;
+
+                uint16_t cmd = header.CommonHeader.Command;
+
+                // Ensure required bits for AHCI
+                cmd |= (1 << 1);   // Memory space
+                cmd |= (1 << 2);   // Bus master (DMA)
+                cmd &= ~(1 << 10); // Enable interrupts
+
+                WritePCIConfigWord(bus, device, function, 0x04, cmd);
+
+                Logger::Log("PCI CMD set for %x:%x:%x -> %x\n",
+                    LOG_LEVEL::INFO, bus, device, function, cmd);
+
+                return;
+            }
+        }
+
+        PanicPCI("WriteDevice: device not found");
+    }
+
+    void PCI::WritePCIConfigWord(uint8_t bus, uint8_t device, uint8_t function, uint8_t offset, uint16_t value)
+    {
+        uint32_t address = (uint32_t)(
+            ((uint32_t)bus << 16) |
+            ((uint32_t)device << 11) |
+            ((uint32_t)function << 8) |
+            (offset & 0xFC) |
+            0x80000000
+        );
+
+        outl(PCI_CONFIG_ADDRESS, address);
+
+        uint32_t data = inl(PCI_CONFIG_DATA);
+
+        if (offset & 2) {
+            data &= 0x0000FFFF;
+            data |= ((uint32_t)value << 16);
+        } else {
+            data &= 0xFFFF0000;
+            data |= value;
+        }
+
+        outl(PCI_CONFIG_DATA, data);
     }
 }
