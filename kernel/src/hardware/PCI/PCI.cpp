@@ -1,4 +1,4 @@
-#include <PCI/PCI.h>
+#include <hardware/PCI/PCI.h>
 
 #include <memory/PageTableManager.h>
 #include <generic/kernelInit.h>
@@ -94,6 +94,8 @@ namespace PCI
 
     PCIDeviceHeader PCI::GetDevice(uint16_t VendorID,uint16_t DeviceID)
     {
+        PCIDeviceHeader header = {};
+
         for (size_t entry = 0; entry < (m_deviceHeaderPageCount * 4096) / sizeof(PCIDevice); entry++)
         {
             if (m_deviceHeaders[entry].VendorID == VendorID && m_deviceHeaders[entry].DeviceID == DeviceID)
@@ -101,7 +103,6 @@ namespace PCI
                 uint8_t bus = m_deviceHeaders[entry].bus;
                 uint8_t device = m_deviceHeaders[entry].device;
                 uint8_t function = m_deviceHeaders[entry].function;
-                PCIDeviceHeader header = {};
                 header.CommonHeader.VendorID                = ReadPCIConfigWord(bus, device, function, 0x00);
                 header.CommonHeader.DeviceID                = ReadPCIConfigWord(bus, device, function, 0x02);
                 header.CommonHeader.Command                 = ReadPCIConfigWord(bus, device, function, 0x04);
@@ -160,9 +161,8 @@ namespace PCI
                 header.MinGrant                             = (uint8_t)(w3E & 0xFF);
                 header.MaxLatency                           = (uint8_t)(w3E >> 8);
 
-                return header;
             }
         }
-        return (PCIDeviceHeader){0};
+        return header;
     }
 }

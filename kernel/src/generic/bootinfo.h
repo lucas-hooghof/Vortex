@@ -63,4 +63,5 @@ typedef struct
     uint64_t DescriptorSize;
 
     uint64_t kernelstart;
+    void* rsdp;
 }bootinfo_t;

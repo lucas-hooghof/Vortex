@@ -32,6 +32,8 @@ extern "C" void __attribute__((noreturn)) kernel_main(bootinfo_t* info)
     }
     Logger::Log("Interrupts Initilized\n",LOG_LEVEL::INFO);
 
+    Logger::Log("%x\n",LOG_LEVEL::INFO,(uint64_t)info->rsdp);
+
     PCI::PCI pci;
 
     while (1) {}

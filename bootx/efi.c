@@ -843,6 +843,8 @@ typedef struct
     UINTN DescriptorSize;
 
     EFI_PHYSICAL_ADDRESS kernelstart;
+
+    void* rsdp;
 }bootinfo_t;
 
 // Print a single PSF1 glyph to the UEFI console as 1s and 0s
@@ -1111,6 +1113,17 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
         framebuffer->BufferSize,
         PAGE_PRESENT | PAGE_WRITE);
 
+    void* rsdp = NULL;
+    EFI_GUID ACPI20 = EFI_ACPI_20_TABLE_GUID;
+
+    for (UINTN table = 0; table < SystemTable->NumberOfTableEntries; table++)
+    {
+        EFI_CONFIGURATION_TABLE* t = (EFI_CONFIGURATION_TABLE*)((uint64_t)SystemTable->ConfigurationTable + (table * sizeof(EFI_CONFIGURATION_TABLE)));
+        if (!memcmp(t,&ACPI20,sizeof(EFI_GUID)))
+        {
+            rsdp = t->VendorTable;
+        }
+    }
 
     UINTN MapSize = 0,MapKey = 0,DescriptorSize = 0;
     UINT32 DescriptorVersion = 0;
@@ -1134,6 +1147,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,EFI_SYSTEM_TABLE* SystemTable)
     info.framebuffer = framebuffer;
     info.font = font;
     info.kernelstart = kernPhysBase;
+    info.rsdp = rsdp;
 
     //Call kernel
     void (__attribute__((sysv_abi)) *kernel_start)(bootinfo_t*) =
