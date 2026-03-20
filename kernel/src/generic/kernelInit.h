@@ -6,3 +6,4 @@ extern uint64_t HHDM;
 
 bool PrepareMemory(bootinfo_t* info);
 bool PrepareInterrupts();
+bool PrepareHardware();

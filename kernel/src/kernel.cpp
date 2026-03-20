@@ -1,7 +1,6 @@
 #include <generic/stdio.h>
 
 #include <generic/kernelInit.h>
-#include <hardware/PCI/PCI.h>
 
 extern void (*__init_array_start[])();
 extern void (*__init_array_end[])();
@@ -32,8 +31,13 @@ extern "C" void __attribute__((noreturn)) kernel_main(bootinfo_t* info)
     }
     Logger::Log("Interrupts Initilized\n",LOG_LEVEL::INFO);
 
-    Logger::Log("%x\n",LOG_LEVEL::INFO,(uint64_t)info->rsdp);
+    if (!PrepareHardware())
+    {
+        Logger::Log("Failed to initilize hardware",LOG_LEVEL::ERROR);
+        while(1) {}
+    }
 
+    Logger::Log("Hardware Intilized",LOG_LEVEL::INFO);
 
     while (1) {}
 }

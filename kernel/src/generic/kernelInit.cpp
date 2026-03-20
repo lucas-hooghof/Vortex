@@ -9,6 +9,8 @@
 #include <interrupts/ISR.h>
 #include <interrupts/IDT.h>
 
+#include <hardware/PCI/PCI.h>
+
 
 extern uint64_t _KernelStart;
 extern uint64_t _KernelEnd;
@@ -105,6 +107,13 @@ bool PrepareInterrupts()
     asm volatile ("lidt %0" : : "m"(idtr));
     if(!InitilizeISR()) { return false; }
     asm volatile ("sti");
+
+    return true;
+}
+
+bool PrepareHardware()
+{
+    PCI::PCI::Initilize();
 
     return true;
 }
