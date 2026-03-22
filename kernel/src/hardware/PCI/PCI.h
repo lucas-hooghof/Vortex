@@ -70,16 +70,23 @@ namespace PCI
         uint8_t padding[6];
     };
 
+    struct PCIDeviceIntilized
+    {
+        PCIDevice device;
+        void* Driver;
+    };
+
     class PCI
     {
     public:
         static void Initilize();
         static void Deinit();
 
-        static PCIDeviceHeader GetDevice(uint16_t VendorID,uint16_t DeviceID);
+        static PCIDeviceHeader GetDevice(PCIDevice pcidevice);
         static void WriteDevice(PCIDeviceHeader header);
 
         static PCIDevice* GetDeviceHeaders()  { return m_deviceHeaders; }
+        static uint32_t GetDeviceCount() { return m_DeviceHeaderCount; }
 
         static const char* GetVendorID(uint16_t VendorID)
         {

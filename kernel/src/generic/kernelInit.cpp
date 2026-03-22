@@ -10,6 +10,8 @@
 #include <interrupts/IDT.h>
 
 #include <hardware/PCI/PCI.h>
+#include <hardware/ACPI/ACPI.h>
+#include <hardware/AHCI/AHCI.h> 
 
 
 extern uint64_t _KernelStart;
@@ -22,6 +24,8 @@ uint64_t HHDM = 0;
 
 PageAllocater pa;
 PageTableManager ptm;
+
+
 
 bool PrepareMemory(bootinfo_t* info)
 {
@@ -114,6 +118,19 @@ bool PrepareInterrupts()
 bool PrepareHardware()
 {
     PCI::PCI::Initilize();
+
+    PCI::PCIDevice* devicelist = PCI::PCI::GetDeviceHeaders();
+    for (uint32_t i = 0; i < PCI::PCI::GetDeviceCount(); i++)
+    {
+        PCI::PCIDeviceHeader deviceheader = PCI::PCI::GetDevice(devicelist[i]);
+
+        if (deviceheader.CommonHeader.ClassCode == 0x01 &&
+            deviceheader.CommonHeader.SubClass == 0x06 && 
+            deviceheader.CommonHeader.ProgramInterface == 0x1)
+        {
+            
+        }
+    }
 
     return true;
 }

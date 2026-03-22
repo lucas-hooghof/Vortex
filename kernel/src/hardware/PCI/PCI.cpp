@@ -93,77 +93,71 @@ namespace PCI
         return tmp;
     }
 
-    PCIDeviceHeader PCI::GetDevice(uint16_t VendorID,uint16_t DeviceID)
+    PCIDeviceHeader PCI::GetDevice(PCIDevice pcidevice)
     {
         PCIDeviceHeader header = {};
 
-        for (size_t entry = 0; entry < m_DeviceHeaderCount; entry++)
-        {
-            if (m_deviceHeaders[entry].VendorID == VendorID && m_deviceHeaders[entry].DeviceID == DeviceID)
-            {
-                uint8_t bus = m_deviceHeaders[entry].bus;
-                uint8_t device = m_deviceHeaders[entry].device;
-                uint8_t function = m_deviceHeaders[entry].function;
-                header.CommonHeader.VendorID                = ReadPCIConfigWord(bus, device, function, 0x00);
-                header.CommonHeader.DeviceID                = ReadPCIConfigWord(bus, device, function, 0x02);
-                header.CommonHeader.Command                 = ReadPCIConfigWord(bus, device, function, 0x04);
-                header.CommonHeader.Status                  = ReadPCIConfigWord(bus, device, function, 0x06);
+        uint8_t bus = pcidevice.bus;
+        uint8_t device = pcidevice.device;
+        uint8_t function = pcidevice.function;
+        header.CommonHeader.VendorID                = ReadPCIConfigWord(bus, device, function, 0x00);
+        header.CommonHeader.DeviceID                = ReadPCIConfigWord(bus, device, function, 0x02);
+        header.CommonHeader.Command                 = ReadPCIConfigWord(bus, device, function, 0x04);
+        header.CommonHeader.Status                  = ReadPCIConfigWord(bus, device, function, 0x06);
 
-                uint16_t w08                                = ReadPCIConfigWord(bus, device, function, 0x08);
-                header.CommonHeader.RevisionID              = (uint8_t)(w08 & 0xFF);
-                header.CommonHeader.ProgramInterface                  = (uint8_t)(w08 >> 8);
+        uint16_t w08                                = ReadPCIConfigWord(bus, device, function, 0x08);
+        header.CommonHeader.RevisionID              = (uint8_t)(w08 & 0xFF);
+        header.CommonHeader.ProgramInterface                  = (uint8_t)(w08 >> 8);
 
-                uint16_t w0A                                = ReadPCIConfigWord(bus, device, function, 0x0A);
-                header.CommonHeader.SubClass                = (uint8_t)(w0A & 0xFF);
-                header.CommonHeader.ClassCode               = (uint8_t)(w0A >> 8);
+        uint16_t w0A                                = ReadPCIConfigWord(bus, device, function, 0x0A);
+        header.CommonHeader.SubClass                = (uint8_t)(w0A & 0xFF);
+        header.CommonHeader.ClassCode               = (uint8_t)(w0A >> 8);
 
-                uint16_t w0C                                = ReadPCIConfigWord(bus, device, function, 0x0C);
-                header.CommonHeader.CacheLineSize           = (uint8_t)(w0C & 0xFF);
-                header.CommonHeader.LatencyTimer            = (uint8_t)(w0C >> 8);
+        uint16_t w0C                                = ReadPCIConfigWord(bus, device, function, 0x0C);
+        header.CommonHeader.CacheLineSize           = (uint8_t)(w0C & 0xFF);
+        header.CommonHeader.LatencyTimer            = (uint8_t)(w0C >> 8);
 
-                uint16_t w0E                                = ReadPCIConfigWord(bus, device, function, 0x0E);
-                header.CommonHeader.HeaderType              = (uint8_t)(w0E & 0xFF);
-                header.CommonHeader.BIST                    = (uint8_t)(w0E >> 8);
+        uint16_t w0E                                = ReadPCIConfigWord(bus, device, function, 0x0E);
+        header.CommonHeader.HeaderType              = (uint8_t)(w0E & 0xFF);
+        header.CommonHeader.BIST                    = (uint8_t)(w0E >> 8);
 
-                // BARs (each is a dword, read as two words)
-                header.BAR0  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x10) |
-                            ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x12) << 16);
-                header.BAR1  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x14) |
-                            ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x16) << 16);
-                header.BAR2  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x18) |
-                            ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x1A) << 16);
-                header.BAR3  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x1C) |
-                            ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x1E) << 16);
-                header.BAR4  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x20) |
-                            ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x22) << 16);
-                header.BAR5  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x24) |
-                            ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x26) << 16);
+        // BARs (each is a dword, read as two words)
+        header.BAR0  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x10) |
+                    ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x12) << 16);
+        header.BAR1  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x14) |
+                    ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x16) << 16);
+        header.BAR2  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x18) |
+                    ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x1A) << 16);
+        header.BAR3  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x1C) |
+                    ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x1E) << 16);
+        header.BAR4  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x20) |
+                    ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x22) << 16);
+        header.BAR5  = (uint32_t)ReadPCIConfigWord(bus, device, function, 0x24) |
+                    ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x26) << 16);
 
-                header.CardbusCISPointer =
-                            (uint32_t)ReadPCIConfigWord(bus, device, function, 0x28) |
-                            ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x2A) << 16);
+        header.CardbusCISPointer =
+                    (uint32_t)ReadPCIConfigWord(bus, device, function, 0x28) |
+                    ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x2A) << 16);
 
-                header.SubsystemVendorID                    = ReadPCIConfigWord(bus, device, function, 0x2C);
-                header.SubsystemID                          = ReadPCIConfigWord(bus, device, function, 0x2E);
+        header.SubsystemVendorID                    = ReadPCIConfigWord(bus, device, function, 0x2C);
+        header.SubsystemID                          = ReadPCIConfigWord(bus, device, function, 0x2E);
 
-                header.ExpansionROMBaseAddress =
-                            (uint32_t)ReadPCIConfigWord(bus, device, function, 0x30) |
-                            ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x32) << 16);
+        header.ExpansionROMBaseAddress =
+                    (uint32_t)ReadPCIConfigWord(bus, device, function, 0x30) |
+                    ((uint32_t)ReadPCIConfigWord(bus, device, function, 0x32) << 16);
 
-                uint16_t w34                                = ReadPCIConfigWord(bus, device, function, 0x34);
-                header.Capabilities                         = (uint8_t)(w34 & 0xFF);
-                // reserved0 and reserved1 left as zero
+        uint16_t w34                                = ReadPCIConfigWord(bus, device, function, 0x34);
+        header.Capabilities                         = (uint8_t)(w34 & 0xFF);
+        // reserved0 and reserved1 left as zero
 
-                uint16_t w3C                                = ReadPCIConfigWord(bus, device, function, 0x3C);
-                header.InterruptLine                        = (uint8_t)(w3C & 0xFF);
-                header.InterruptPin                         = (uint8_t)(w3C >> 8);
+        uint16_t w3C                                = ReadPCIConfigWord(bus, device, function, 0x3C);
+        header.InterruptLine                        = (uint8_t)(w3C & 0xFF);
+        header.InterruptPin                         = (uint8_t)(w3C >> 8);
 
-                uint16_t w3E                                = ReadPCIConfigWord(bus, device, function, 0x3E);
-                header.MinGrant                             = (uint8_t)(w3E & 0xFF);
-                header.MaxLatency                           = (uint8_t)(w3E >> 8);
+        uint16_t w3E                                = ReadPCIConfigWord(bus, device, function, 0x3E);
+        header.MinGrant                             = (uint8_t)(w3E & 0xFF);
+        header.MaxLatency                           = (uint8_t)(w3E >> 8);
 
-            }
-        }
         return header;
     }
 
