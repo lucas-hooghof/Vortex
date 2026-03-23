@@ -13,6 +13,8 @@
 #include <hardware/ACPI/ACPI.h>
 #include <hardware/AHCI/AHCI.h> 
 
+#include <fs/VFS.h>
+
 
 extern uint64_t _KernelStart;
 extern uint64_t _KernelEnd;
@@ -119,6 +121,10 @@ bool PrepareInterrupts()
 bool PrepareHardware()
 {
     PCI::PCI::Initilize();
+    if(!fs::VFS::Initilize())
+    {
+        return false;
+    }
 
     PCI::PCIDevice* devicelist = PCI::PCI::GetDeviceHeaders();
     for (uint32_t i = 0; i < PCI::PCI::GetDeviceCount(); i++)
@@ -129,8 +135,7 @@ bool PrepareHardware()
             deviceheader.CommonHeader.SubClass == 0x06 && 
             deviceheader.CommonHeader.ProgramInterface == 0x1)
         {
-            PCI::AHCI driver(&deviceheader);
-
+            PCI::AHCI* driver = new PCI::AHCI(&deviceheader);
         }
     }
 
