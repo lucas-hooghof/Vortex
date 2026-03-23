@@ -5,6 +5,7 @@
 #include <memory/PageAllocater.h>
 #include <memory/PageTableManager.h>
 #include <memory/GDT.h>
+#include <memory/heap.h>
 
 #include <interrupts/ISR.h>
 #include <interrupts/IDT.h>
@@ -14,6 +15,7 @@
 #include <hardware/AHCI/AHCI.h> 
 
 #include <fs/VFS.h>
+#include <fs/graphical/FBDevice.h>
 
 
 extern uint64_t _KernelStart;
@@ -101,6 +103,8 @@ bool PrepareMemory(bootinfo_t* info)
 
     LoadGDT(&gdtr);
 
+    InitializeHeap((void*)(HHDM + 0x0000100000000000),0x10);
+
 
     return true;
 }
@@ -118,13 +122,18 @@ bool PrepareInterrupts()
     return true;
 }
 
-bool PrepareHardware()
+bool PrepareHardware(bootinfo_t* info)
 {
     PCI::PCI::Initilize();
     if(!fs::VFS::Initilize())
     {
         return false;
     }
+
+    fs::FBDevice* framebuffer = new fs::FBDevice(info->framebuffer,"/proc/fb0");
+    fs::VFS::RegisterVirtualDevice(framebuffer);
+
+    fs::VFS::GetDevice("/proc/fb0")->Write32(0xFFFFFFFF,600);
 
     PCI::PCIDevice* devicelist = PCI::PCI::GetDeviceHeaders();
     for (uint32_t i = 0; i < PCI::PCI::GetDeviceCount(); i++)
@@ -136,6 +145,8 @@ bool PrepareHardware()
             deviceheader.CommonHeader.ProgramInterface == 0x1)
         {
             PCI::AHCI* driver = new PCI::AHCI(&deviceheader);
+
+            delete driver;
         }
     }
 

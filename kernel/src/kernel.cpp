@@ -31,7 +31,7 @@ extern "C" void __attribute__((noreturn)) kernel_main(bootinfo_t* info)
     }
     Logger::Log("Interrupts Initilized\n",LOG_LEVEL::INFO);
 
-    if (!PrepareHardware())
+    if (!PrepareHardware(info))
     {
         Logger::Log("Failed to initilize hardware",LOG_LEVEL::ERROR);
         while(1) {}
