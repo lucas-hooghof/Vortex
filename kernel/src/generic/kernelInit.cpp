@@ -130,6 +130,7 @@ bool PrepareHardware()
             deviceheader.CommonHeader.ProgramInterface == 0x1)
         {
             PCI::AHCI driver(&deviceheader);
+
         }
     }
 

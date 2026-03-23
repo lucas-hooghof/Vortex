@@ -2,8 +2,16 @@
 
 #include <memory/PageTableManager.h>
 
+#include <generic/string.h>
+
 namespace PCI
 {
+    // Forward declarations (defined later in this file)
+    void stop_cmd(HBA_PORT *port);
+    void start_cmd(HBA_PORT *port);
+    int find_cmdslot(HBA_MEM* abar, HBA_PORT *port);
+    int check_type(HBA_PORT* port);
+
     #define	SATA_SIG_ATA	0x00000101	// SATA drive
     #define	SATA_SIG_ATAPI	0xEB140101	// SATAPI drive
     #define	SATA_SIG_SEMB	0xC33C0101	// Enclosure management bridge
@@ -17,6 +25,89 @@ namespace PCI
 
     #define HBA_PORT_IPM_ACTIVE 1
     #define HBA_PORT_DET_PRESENT 3
+
+
+    #define HBA_PxCMD_ST    0x0001
+    #define HBA_PxCMD_FRE   0x0010
+    #define HBA_PxCMD_FR    0x4000
+    #define HBA_PxCMD_CR    0x8000
+
+    #define HBA_PxIS_TFES (1 << 30)
+    #define ATA_CMD_READ_DMA_EX 0x25
+
+    void port_rebase(HBA_PORT *port, int portno)
+    {
+        stop_cmd(port);	// Stop command engine
+        uint64_t ahci_base = (uint64_t)PageAllocater::GetInstance()->RequestPages(3);
+        PageTableManager::GetInstance()->MapMemory((void*)ahci_base,(void*)ahci_base,PAGE_PRESENT | PAGE_RW | PAGE_PCD);
+        PageTableManager::GetInstance()->MapMemory((void*)(ahci_base + 0x1000),(void*)(ahci_base + 0x1000),PAGE_PRESENT | PAGE_RW | PAGE_PCD);
+        PageTableManager::GetInstance()->MapMemory((void*)(ahci_base + 0x2000),(void*)(ahci_base + 0x2000),PAGE_PRESENT | PAGE_RW | PAGE_PCD);
+
+        // Command list offset: 1K*portno
+        // Command list entry size = 32
+        // Command list entry maxim count = 32
+        // Command list maxim size = 32*32 = 1K per port
+        port->clb = ahci_base + (portno<<10);
+        port->clbu = 0;
+        // FIX: cast port->clb (uint32_t stored address) via uintptr_t to avoid
+        //      "cast from integer of different size" on 64-bit targets.
+        memset((void*)(uintptr_t)(port->clb), 0, 1024);
+
+        // FIS offset: 32K+256*portno
+        // FIS entry size = 256 bytes per port
+        port->fb = ahci_base + (32<<10) + (portno<<8);
+        port->fbu = 0;
+        memset((void*)(uintptr_t)(port->fb), 0, 256);
+
+        // Command table offset: 40K + 8K*portno
+        // Command table size = 256*32 = 8K per port
+        // FIX: use uintptr_t when converting the stored 32-bit base address to a pointer.
+        HBA_CMD_HEADER *cmdheader = (HBA_CMD_HEADER*)(uintptr_t)(port->clb);
+        for (int i=0; i<32; i++)
+        {
+            cmdheader[i].prdtl = 8;	// 8 prdt entries per command table
+                        // 256 bytes per command table, 64+16+48+16*8
+            // Command table offset: 40K + 8K*portno + cmdheader_index*256
+            cmdheader[i].ctba = ahci_base + (40<<10) + (portno<<13) + (i<<8);
+            cmdheader[i].ctbau = 0;
+            memset((void*)(uintptr_t)cmdheader[i].ctba, 0, 256);
+        }
+
+        start_cmd(port);	// Start command engine
+    }
+
+    // Start command engine
+    void start_cmd(HBA_PORT *port)
+    {
+        // Wait until CR (bit15) is cleared
+        while (port->cmd & HBA_PxCMD_CR)
+            ;
+
+        // Set FRE (bit4) and ST (bit0)
+        port->cmd |= HBA_PxCMD_FRE;
+        port->cmd |= HBA_PxCMD_ST; 
+    }
+
+    // Stop command engine
+    void stop_cmd(HBA_PORT *port)
+    {
+        // Clear ST (bit0)
+        port->cmd &= ~HBA_PxCMD_ST;
+
+        // Clear FRE (bit4)
+        port->cmd &= ~HBA_PxCMD_FRE;
+
+        // Wait until FR (bit14), CR (bit15) are cleared
+        while(1)
+        {
+            if (port->cmd & HBA_PxCMD_FR)
+                continue;
+            if (port->cmd & HBA_PxCMD_CR)
+                continue;
+            break;
+        }
+
+    }
 
     int check_type(HBA_PORT* port)
     {
@@ -43,13 +134,13 @@ namespace PCI
         }
     }
 
-    AHCI::AHCI(PCIDeviceHeader* device)
-    {
-        m_device = device;
-        device->CommonHeader.Command |= 0b0000000000000110;
-        PCI::WriteDevice(*device);
+        AHCI::AHCI(PCIDeviceHeader* device)
+        {
+            m_device = device;
+            device->CommonHeader.Command |= 0b0000000000000110;
+            PCI::WriteDevice(*device);
 
-        PageTableManager::GetInstance()->MapMemory((void*)device,(void*)device,PAGE_PRESENT | PAGE_PCD | PAGE_RW);
+            PageTableManager::GetInstance()->MapMemory((void*)(uint64_t)device->BAR5,(void*)(uint64_t)device->BAR5,PAGE_PRESENT | PAGE_PCD | PAGE_RW);
 
         abar = (HBA_MEM*)(uint64_t)device->BAR5;
         //BIOS handoffs
@@ -88,6 +179,8 @@ namespace PCI
                 if (dt == AHCI_DEV_SATA)
                 {
                     Logger::Log("SATA drive found at port %d\n",LOG_LEVEL::INFO, i);
+                    Ports[i] = &abar->ports[i];
+                    port_rebase(&abar->ports[i],i);
                 }
                 else if (dt == AHCI_DEV_SATAPI)
                 {
@@ -117,4 +210,116 @@ namespace PCI
     {
 
     }
+
+    #define ATA_DEV_BUSY 0x80
+    #define ATA_DEV_DRQ 0x08
+
+    bool AHCI::Read(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, uint16_t *buf)
+    {
+        port->is = (uint32_t) -1;		// Clear pending interrupt bits
+        int spin = 0; // Spin lock timeout counter
+        int slot = find_cmdslot(abar,port);
+        if (slot == -1)
+            return false;
+
+        // FIX: use uintptr_t when converting the stored 32-bit base address to a pointer.
+        HBA_CMD_HEADER *cmdheader = (HBA_CMD_HEADER*)(uintptr_t)port->clb;
+        cmdheader += slot;
+        cmdheader->cfl = sizeof(FIS_REG_H2D)/sizeof(uint32_t);	// Command FIS size
+        cmdheader->w = 0;		// Read from device
+        cmdheader->prdtl = (uint16_t)((count-1)>>4) + 1;	// PRDT entries count
+
+        HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*)(uintptr_t)(cmdheader->ctba);
+        memset(cmdtbl, 0, sizeof(HBA_CMD_TBL) +
+            (cmdheader->prdtl-1)*sizeof(HBA_PRDT_ENTRY));
+        int i = 0;
+        // 8K bytes (16 sectors) per PRDT
+        for (i=0; i<cmdheader->prdtl-1; i++)
+        {
+            // FIX: buf is a 64-bit pointer; store low 32 bits in dba and high 32 bits
+            //      in dbau so no precision is lost on 64-bit targets.
+            cmdtbl->prdt_entry[i].dba  = (uint32_t)((uintptr_t)buf & 0xFFFFFFFF);
+            cmdtbl->prdt_entry[i].dbau = (uint32_t)((uintptr_t)buf >> 32);
+            cmdtbl->prdt_entry[i].dbc = 8*1024-1;	// 8K bytes (this value should always be set to 1 less than the actual value)
+            cmdtbl->prdt_entry[i].i = 1;
+            buf += 4*1024;	// 4K words
+            count -= 16;	// 16 sectors
+        }
+        // Last entry
+        cmdtbl->prdt_entry[i].dba  = (uint32_t)((uintptr_t)buf & 0xFFFFFFFF);
+        cmdtbl->prdt_entry[i].dbau = (uint32_t)((uintptr_t)buf >> 32);
+        cmdtbl->prdt_entry[i].dbc = (count<<9)-1;	// 512 bytes per sector
+        cmdtbl->prdt_entry[i].i = 1;
+
+        // Setup command
+        FIS_REG_H2D *cmdfis = (FIS_REG_H2D*)(&cmdtbl->cfis);
+
+        cmdfis->fis_type = FIS_TYPE_REG_H2D;
+        cmdfis->c = 1;	// Command
+        cmdfis->command = ATA_CMD_READ_DMA_EX;
+
+        cmdfis->lba0 = (uint8_t)startl;
+        cmdfis->lba1 = (uint8_t)(startl>>8);
+        cmdfis->lba2 = (uint8_t)(startl>>16);
+        cmdfis->device = 1<<6;	// LBA mode
+
+        cmdfis->lba3 = (uint8_t)(startl>>24);
+        cmdfis->lba4 = (uint8_t)starth;
+        cmdfis->lba5 = (uint8_t)(starth>>8);
+
+        cmdfis->countl = count & 0xFF;
+        cmdfis->counth = (count >> 8) & 0xFF;
+
+        // The below loop waits until the port is no longer busy before issuing a new command
+        while ((port->tfd & (ATA_DEV_BUSY | ATA_DEV_DRQ)) && spin < 1000000)
+        {
+            spin++;
+        }
+        if (spin == 1000000)
+        {
+
+            return false;
+        }
+
+        port->ci = 1<<slot;	// Issue command
+
+        // Wait for completion
+        while (1)
+        {
+            // In some longer duration reads, it may be helpful to spin on the DPS bit 
+            // in the PxIS port field as well (1 << 5)
+            if ((port->ci & (1<<slot)) == 0) 
+                break;
+            if (port->is & HBA_PxIS_TFES)	// Task file error
+            {
+
+                return false;
+            }
+        }
+
+        // Check again
+        if (port->is & HBA_PxIS_TFES)
+        {
+
+            return false;
+        }
+
+        return true;
+    }
+
+    // Find a free command list slot
+    int find_cmdslot(HBA_MEM* abar,HBA_PORT *port)
+    {
+        int cmdslots = ((abar->cap >> 8) & 0x1F) + 1;
+        // If not set in SACT and CI, the slot is free
+        uint32_t slots = (port->sact | port->ci);
+        for (int i=0; i<cmdslots; i++)
+        {
+            if ((slots&1) == 0)
+                return i;
+            slots >>= 1;
+        }
+        return -1;
+    }
+
 }
