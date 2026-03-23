@@ -99,6 +99,7 @@ bool PrepareMemory(bootinfo_t* info)
 
     LoadGDT(&gdtr);
 
+
     return true;
 }
 
@@ -128,7 +129,7 @@ bool PrepareHardware()
             deviceheader.CommonHeader.SubClass == 0x06 && 
             deviceheader.CommonHeader.ProgramInterface == 0x1)
         {
-            
+            PCI::AHCI driver(&deviceheader);
         }
     }
 

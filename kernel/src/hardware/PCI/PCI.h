@@ -68,6 +68,7 @@ namespace PCI
         uint8_t ClassCode;
 
         uint8_t padding[6];
+
     };
 
     struct PCIDeviceIntilized
