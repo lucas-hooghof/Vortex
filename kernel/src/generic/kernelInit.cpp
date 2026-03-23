@@ -145,8 +145,7 @@ bool PrepareHardware(bootinfo_t* info)
             deviceheader.CommonHeader.ProgramInterface == 0x1)
         {
             PCI::AHCI* driver = new PCI::AHCI(&deviceheader);
-
-            delete driver;
+            
         }
     }
 
