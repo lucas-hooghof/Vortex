@@ -15,7 +15,7 @@
 #include <hardware/AHCI/AHCI.h> 
 
 #include <fs/VFS.h>
-#include <fs/graphical/FBDevice.h>
+#include <fs/devices/FramebufferDevice.h>
 
 
 extern uint64_t _KernelStart;
@@ -125,15 +125,14 @@ bool PrepareInterrupts()
 bool PrepareHardware(bootinfo_t* info)
 {
     PCI::PCI::Initilize();
-    if(!fs::VFS::Initilize())
+    if (!fs::VFS::Initilize())
     {
         return false;
     }
 
-    fs::FBDevice* framebuffer = new fs::FBDevice(info->framebuffer,"/proc/fb0");
-    fs::VFS::RegisterVirtualDevice(framebuffer);
+    fs::FramebufferDevice* fbdevice = new fs::FramebufferDevice("/dev/fb0",info->framebuffer);
+    fs::VFS::RegisterVirtualDevice(fbdevice);
 
-    fs::VFS::GetDevice("/proc/fb0")->Write32(0xFFFFFFFF,600);
 
     PCI::PCIDevice* devicelist = PCI::PCI::GetDeviceHeaders();
     for (uint32_t i = 0; i < PCI::PCI::GetDeviceCount(); i++)
@@ -145,7 +144,7 @@ bool PrepareHardware(bootinfo_t* info)
             deviceheader.CommonHeader.ProgramInterface == 0x1)
         {
             PCI::AHCI* driver = new PCI::AHCI(&deviceheader);
-            
+            (void)driver;
         }
     }
 

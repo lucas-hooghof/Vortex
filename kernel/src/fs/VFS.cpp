@@ -1,90 +1,116 @@
 #include <fs/VFS.h>
+
 #include <memory/heap.h>
+#include <generic/string.h>
 
-namespace fs {
+namespace fs
+{
+    Device** VFS::Devices = nullptr;
+    Device** VFS::OpendDevices = nullptr;
+    size_t VFS::devicearrayentrycount = 4;
+    size_t VFS::devicearraynextindex = 0;
+    fid_t VFS::nextfid = 0;
+    fid_t VFS::OpendArraySize = 0;
 
-    bool           VFS::Initilized = false;
-    VirtualDevice** VFS::devices   = nullptr;
-    size_t         VFS::count      = 0;
-    size_t         VFS::Size       = 4;
+    bool init = false;
 
-    bool VFS::StrEqual(const char* a, const char* b) {
-        if (a == nullptr || b == nullptr) return false;
-        while (*a && *b) {
-            if (*a != *b) return false;
-            a++; b++;
+    bool VFS::Initilize()
+    {
+        if (init) return true;
+        init = true;
+        Devices = (Device**)malloc(sizeof(Device*) * devicearrayentrycount);
+
+        if (!Devices)
+        {
+            return false;
         }
-        return *a == *b;
-    }
 
+        for (size_t i = 0; i < devicearrayentrycount; i++)
+        {
+            Devices[i] = nullptr;
+        }
 
-    bool VFS::Initilize() {
-        if (Initilized) return true;
-        devices = (VirtualDevice**)malloc(Size * sizeof(VirtualDevice*));
-        if (devices == nullptr) return false;
-        Initilized = true;
         return true;
     }
 
-    void VFS::Shutdown() {
-        free(devices);
-        devices    = nullptr;
-        count      = 0;
-        Size       = 4;
-        Initilized = false;
+    void VFS::Destroy()
+    {
+        free(Devices);
+        Devices = nullptr;
     }
 
-    void VFS::RegisterVirtualDevice(VirtualDevice* device) {
-        if (device == nullptr) return;
-
-        if (count + 1 >= Size) {
-            devices = (VirtualDevice**)realloc(devices, (Size + 4) * sizeof(VirtualDevice*));
-            Size += 4;
-        }
-        devices[count++] = device;
-    }
-
-    void VFS::UnregisterVirtualDevice(VirtualDevice* device) {
-        if (device == nullptr) return;
-
-        for (size_t i = 0; i < count; i++) {
-            if (devices[i] == device) {
-                // shift everything left over the removed slot
-                for (size_t j = i; j < count - 1; j++)
-                    devices[j] = devices[j + 1];
-                devices[--count] = nullptr;
-                return;
+    bool VFS::RegisterVirtualDevice(Device* device)
+    {
+        for (size_t i = 0; i < devicearrayentrycount; i++)
+        {
+            if (Devices[i] == nullptr)
+            {
+                Devices[i] = device;
+                return true;
             }
         }
+
+        Devices = (Device**)realloc(Devices,(OpendArraySize+4) * sizeof(Device*));
+        if (Devices == nullptr) return -1;
+        for (size_t i = devicearrayentrycount; i < devicearrayentrycount + 4; i++)
+        {
+            Devices[i] = nullptr;
+        }
+        devicearrayentrycount += 4;
+
+        for (size_t i = 0; i < devicearrayentrycount; i++)
+        {
+            if (Devices[i] == nullptr)
+            {
+                Devices[i] = device;
+                return true;
+            }
+        }
+
+        return false;
     }
 
+    fid_t VFS::Open(const char* address,int flags)
+    {
+        for (size_t i = 0; i < devicearrayentrycount; i++)
+        {
+            if (Devices[i] == nullptr) break;
+            if ((Devices[i]->allowedflags & flags) != flags) break;
+            if (!memcmp((void*)Devices[i]->address,address,strlen(address)))
+            {
 
-    VirtualDevice* VFS::GetDevice(const char* address) {
-        if (address == nullptr) return nullptr;
+                if ((nextfid + 1) > OpendArraySize)
+                {
+                    OpendDevices = (Device**)realloc(OpendDevices,(OpendArraySize+4) * sizeof(Device*));
+                    if (OpendDevices == nullptr) return -1;
+                    for (fid_t fid = OpendArraySize; fid < OpendArraySize + 4; fid++)
+                    {
+                        OpendDevices[fid] = nullptr;
+                    }
+                    OpendArraySize += 4;
+                }
+                OpendDevices[nextfid++] = Devices[i];
+                if (OpendDevices[nextfid] != nullptr)
+                {
+                    fid_t temp = nextfid;
+                    for (fid_t fid = nextfid; fid < OpendArraySize; fid++)
+                    {
+                        if (OpendDevices[fid] == nullptr)
+                        {
+                            nextfid = fid;
+                        }
+                    }
+                    
+                    if (temp == nextfid)
+                    {
+                        nextfid = OpendArraySize - 1;
+                    }
+                }
 
-        for (size_t i = 0; i < count; i++)
-            if (StrEqual(devices[i]->address, address))
-                return devices[i];
+                return nextfid-1;
+            }
+        }
 
-        return nullptr;
+        return -1;
     }
-
-    VirtualDevice* VFS::GetDeviceByName(const char* name) {
-        if (name == nullptr) return nullptr;
-
-        for (size_t i = 0; i < count; i++)
-            if (StrEqual(devices[i]->name, name))
-                return devices[i];
-
-        return nullptr;
-    }
-
-    bool VFS::DeviceExists(const char* address) {
-        return GetDevice(address) != nullptr;
-    }
-
-    size_t VFS::GetDeviceCount() {
-        return count;
-    }
-
 } 

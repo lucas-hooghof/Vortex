@@ -162,7 +162,7 @@ namespace PCI
     {
         public:
             AHCI(PCIDeviceHeader* device);
-            bool Read(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, uint16_t *buf);
+            bool Read(HBA_PORT *port, uint64_t lba, uint32_t count, void *buf);
             ~AHCI();
 
             HBA_PORT* Ports[32];
