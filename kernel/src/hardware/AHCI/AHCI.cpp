@@ -134,13 +134,13 @@ namespace PCI
         }
     }
 
-        AHCI::AHCI(PCIDeviceHeader* device)
-        {
-            m_device = device;
-            device->CommonHeader.Command |= 0b0000000000000110;
-            PCI::WriteDevice(*device);
+    AHCI::AHCI(PCIDeviceHeader* device)
+    {
+        m_device = device;
+        device->CommonHeader.Command |= 0b0000000000000110;
+        PCI::WriteDevice(*device);
 
-            PageTableManager::GetInstance()->MapMemory((void*)(uint64_t)device->BAR5,(void*)(uint64_t)device->BAR5,PAGE_PRESENT | PAGE_PCD | PAGE_RW);
+        PageTableManager::GetInstance()->MapMemory((void*)(uint64_t)device->BAR5,(void*)(uint64_t)device->BAR5,PAGE_PRESENT | PAGE_PCD | PAGE_RW);
 
         abar = (HBA_MEM*)(uint64_t)device->BAR5;
         //BIOS handoffs
@@ -148,8 +148,6 @@ namespace PCI
         {
 
             abar->bohc |= (1 << 1);
-
-
             int timeout = 1000000;
             while ((abar->bohc & 1) && timeout--)
             {
@@ -160,6 +158,11 @@ namespace PCI
             while ((abar->bohc & (1 << 4)) && timeout--)
             {
             }
+        }
+
+        for (int i = 0; i < 32; i++)
+        {
+            Ports[i] = nullptr;
         }
 
         //Reset HBA

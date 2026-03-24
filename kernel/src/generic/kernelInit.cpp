@@ -16,6 +16,7 @@
 
 #include <fs/VFS.h>
 #include <fs/devices/FramebufferDevice.h>
+#include <fs/partitions.h>
 
 
 extern uint64_t _KernelStart;
@@ -144,7 +145,68 @@ bool PrepareHardware(bootinfo_t* info)
             deviceheader.CommonHeader.ProgramInterface == 0x1)
         {
             PCI::AHCI* driver = new PCI::AHCI(&deviceheader);
-            (void)driver;
+            void* readpage = PageAllocater::GetInstance()->RequestPage();
+            fs::MBR* mbr = (fs::MBR*)readpage;
+            PageTableManager::GetInstance()->MapMemory(readpage, readpage, PAGE_PRESENT | PAGE_RW | PAGE_PCD);
+            memset(mbr, 0, sizeof(fs::MBR));
+            for (uint8_t port = 0; port < 32; port++)
+            {
+                if (driver->Ports[port] == nullptr) continue;
+
+
+                if(!driver->Read(driver->Ports[port],0,1,mbr))
+                {
+                    Logger::Log("Read fail\n",LOG_LEVEL::INFO);
+                }
+                if (mbr->Signature == 0xAA55)
+                {
+                    if (mbr->Partitions[0].Type == 0xEE)
+                    {
+                        fs::GPTHeader* gpth = (fs::GPTHeader*)((uint64_t)readpage + sizeof(fs::MBR));
+                        driver->Read(driver->Ports[port],1,1,gpth);
+                        if (!memcmp(gpth->Signature,"EFI PART",8))
+                        {
+                            fs::GPTPartition* partitiontable = (fs::GPTPartition*)PageAllocater::GetInstance()->RequestPages(4);
+                            driver->Read(driver->Ports[port],2,32,partitiontable);
+                            for (uint32_t i = 0; i < gpth->NumPartitionEntries; i++)
+                            {
+                                fs::GPTPartition partition = partitiontable[i];
+                                fs::GPTGuid guid = GPT_GUID_VXFS_ROOT;
+
+                                if (partition.StartingLBA == 0) break;
+
+                                if (!memcmp((void*)&partition.PartitionTypeGUID,(void*)&guid,sizeof(fs::GPTGuid)))
+                                {
+                                    
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                else  {
+                    fs::GPTHeader* gpth = (fs::GPTHeader*)((uint64_t)readpage);
+                    if (!memcmp(gpth->Signature,"EFI PART",8))
+                    {
+                        fs::GPTPartition* partitiontable = (fs::GPTPartition*)PageAllocater::GetInstance()->RequestPages(4);
+                        driver->Read(driver->Ports[port],1,32,partitiontable);
+                        for (uint32_t i = 0; i < gpth->NumPartitionEntries; i++)
+                        {
+                            fs::GPTPartition partition = partitiontable[i];
+                            fs::GPTGuid guid = GPT_GUID_VXFS_ROOT;
+
+                            if (partition.StartingLBA == 0) break;
+
+                            if (!memcmp((void*)&partition.PartitionTypeGUID,(void*)&guid,sizeof(fs::GPTGuid)))
+                            {
+                                //Parse this drive and load it into the VFS
+                            }
+                        }
+                    }
+                }
+            }
+
+            delete driver;
         }
     }
 

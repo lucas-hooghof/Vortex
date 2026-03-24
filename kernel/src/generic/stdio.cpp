@@ -165,12 +165,7 @@ void log_unsigned(uint64_t number,uint16_t radix,void(*putchar)(char c))
         buffer[pos++] = g_HexChars[rem];
     } while (number > 0);
 
-    // print number in reverse order
-    if (radix == 16)
-    {
-        putchar('0');
-        putchar('X');
-    }
+
     while (--pos >= 0)
         putchar(buffer[pos]);
         

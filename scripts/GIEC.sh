@@ -26,7 +26,7 @@ echo "Creating ESP partition..."
 sgdisk -n 1:2048:+${ESP_SIZE_MB}M -t 1:EF00 -c 1:"EFI System" "$IMAGE"
 
 echo "Creating data partition..."
-sgdisk -n 2:0:0 -t 2:$PART_GUID -c 2:"DATA" "$IMAGE"
+sgdisk -n 2:0:0 -t 2:$PART_GUID -c 2:"Root" "$IMAGE"
 
 echo "Setting up loop device..."
 LOOP=$(sudo losetup --show -fP "$IMAGE")

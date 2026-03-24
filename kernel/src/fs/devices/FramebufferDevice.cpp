@@ -57,7 +57,12 @@ namespace fs
         return buffersize;
     }
 
-    void FramebufferDevice::Seek(size_t offset)  {
-        (void)offset;
+    void FramebufferDevice::Seek(size_t offset)
+    {
+        // Clamp to framebuffer size
+        if (offset > framebuffer->BufferSize)
+            offset = framebuffer->BufferSize;
+
+        ptr = offset;
     }
 }

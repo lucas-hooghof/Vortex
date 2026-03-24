@@ -4,6 +4,8 @@
 
 #define FD_READ 1
 #define FD_WRITE 2
+#define FD_FILE 4
+
 
 
 typedef int fid_t;

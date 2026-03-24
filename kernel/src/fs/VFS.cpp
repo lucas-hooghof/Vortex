@@ -72,6 +72,9 @@ namespace fs
 
     fid_t VFS::Open(const char* address,int flags)
     {
+        if ((flags & FD_FILE) > 0) {
+            return -1;
+        }
         for (size_t i = 0; i < devicearrayentrycount; i++)
         {
             if (Devices[i] == nullptr) break;
