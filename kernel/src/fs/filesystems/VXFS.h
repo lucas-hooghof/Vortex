@@ -109,7 +109,7 @@ namespace fs
     public:
         VXFS(const char* drive);
 
-        bool readfile(char* file,void* buffer);
+        bool readfile(const char* file,void* buffer,size_t* osize);
     private:
         fid_t sd;
         fs::SataDevice* satadevice;
@@ -117,5 +117,27 @@ namespace fs
         VXFS_SUPERBLOCK* superblock;
         VXFS_INODE* rootinode;
         VXFS_EXTENT* rootextent;
+
+        void FindDirectory(VXFS_INODE** node,VXFS_EXTENT** extent,char* name);
+
+        const char* NextEntry(const char* path, char* out)
+        {
+            // Skip leading '/'
+            while (*path == '/')
+                path++;
+
+            if (*path == 0)
+                return nullptr;
+
+            // Copy until next '/'
+            while (*path && *path != '/')
+            {
+                *out++ = *path++;
+            }
+
+            *out = 0;
+
+            return path;
+        }
     };   
 }

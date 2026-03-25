@@ -10,6 +10,8 @@
 #include <interrupts/ISR.h>
 #include <interrupts/IDT.h>
 
+#include <syscalls/syscalls.h>
+
 #include <hardware/PCI/PCI.h>
 #include <hardware/ACPI/ACPI.h>
 #include <hardware/AHCI/AHCI.h> 
@@ -119,6 +121,7 @@ bool PrepareInterrupts()
 
     asm volatile ("lidt %0" : : "m"(idtr));
     if(!InitilizeISR()) { return false; }
+    RegisterHandler(0x80,syscall_handler);
     asm volatile ("sti");
 
     return true;

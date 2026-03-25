@@ -3,12 +3,14 @@ ROOT_DIR=$(abspath root/)
 
 log ?= 0
 
-.PHONY: always image efi run kernel clean
+.PHONY: always image efi run kernel clean lib
 
 run: image
 	./scripts/run.sh
 
-image: efi kernel
+image: efi kernel de
+	mkdir -p $(ROOT_DIR)/bin
+	mv $(BUILD_DIR)/de/DE $(ROOT_DIR)/bin/DE
 	./scripts/GIEC.sh $(BUILD_DIR)/Vortex.hdd $(BUILD_DIR)/BOOTX64.efi ce2adfbe-1c54-11f1-a2ed-00155d8074c4 $(BUILD_DIR)/kernel $(ROOT_DIR)
 
 efi: always
@@ -16,6 +18,12 @@ efi: always
 
 kernel: always
 	$(MAKE) -C kernel/ BUILD_DIR=$(BUILD_DIR) ROOT_DIR=$(ROOT_DIR) log=$(log)
+
+lib:
+	$(MAKE) -C userspace/libc BUILD_DIR=$(BUILD_DIR)
+
+de:
+	$(MAKE) -C userspace/DE BUILD_DIR=$(BUILD_DIR)
  
 always: $(BUILD_DIR) $(ROOT_DIR)
 

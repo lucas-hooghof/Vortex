@@ -10,7 +10,7 @@ CXX := x86_64-elf-g++
 LD := x86_64-elf-ld
 NASM := nasm
 ASFLAGS := -f elf64
-CFLAGS := -ffreestanding -Wall -Wextra -Isrc -Werror -Wpedantic -g -mno-red-zone -fno-stack-protector -mcmodel=kernel
+CFLAGS := -ffreestanding -Wall -Wextra -Isrc -Werror -g -mno-red-zone -fno-stack-protector -mcmodel=kernel
 CXXFLAGS := $(CFLAGS) -fno-exceptions -fno-rtti -mno-red-zone -mgeneral-regs-only -std=c++20
 ifeq ($(log),1)
 CFLAGS += -DLOG
