@@ -322,4 +322,116 @@ namespace PCI
         return -1;
     }
 
+    #define ATA_CMD_IDENTIFY 0xEC
+
+    bool AHCI::IdentityDrive(HBA_PORT* port, size_t* sectorsize, size_t* sectorcount)
+    {
+        port->is = (uint32_t)-1; // clear interrupts
+
+        // 1. Find free command slot
+        int slot = -1;
+        uint32_t slots = (port->sact | port->ci);
+
+        for (int i = 0; i < 32; i++)
+        {
+            if ((slots & (1 << i)) == 0)
+            {
+                slot = i;
+                break;
+            }
+        }
+
+        if (slot == -1)
+            return false;
+
+        // 2. Setup command header
+        HBA_CMD_HEADER* cmdheader = (HBA_CMD_HEADER*)(uintptr_t)port->clb;
+        cmdheader += slot;
+
+        cmdheader->cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t); // FIS length
+        cmdheader->w = 0; // read
+        cmdheader->prdtl = 1;
+
+        // 3. Setup command table
+        HBA_CMD_TBL* cmdtbl = (HBA_CMD_TBL*)(uintptr_t)(cmdheader->ctba);
+
+        // Clear it
+        memset(cmdtbl, 0, sizeof(HBA_CMD_TBL) + (cmdheader->prdtl - 1) * sizeof(HBA_PRDT_ENTRY));
+
+        // 4. Allocate buffer (512 bytes)
+        uint16_t* identify = (uint16_t*)PageAllocater::GetInstance()->RequestPage();
+        if (!identify)
+            return false;
+
+        // Setup PRDT
+        cmdtbl->prdt_entry[0].dba = (uint32_t)(uintptr_t)identify;
+        cmdtbl->prdt_entry[0].dbau = (uint32_t)((uintptr_t)identify >> 32);
+        cmdtbl->prdt_entry[0].dbc = 512 - 1;
+        cmdtbl->prdt_entry[0].i = 1;
+
+        // 5. Setup FIS
+        FIS_REG_H2D* fis = (FIS_REG_H2D*)(&cmdtbl->cfis);
+
+        memset(fis, 0, sizeof(FIS_REG_H2D));
+
+        fis->fis_type = 0x27; // FIS_TYPE_REG_H2D
+        fis->c = 1;           // command
+        fis->command = ATA_CMD_IDENTIFY;
+
+        // 6. Wait until not busy
+        int spin = 0;
+        while ((port->tfd & (0x80 | 0x08)) && spin < 1000000)
+            spin++;
+
+        if (spin == 1000000)
+            return false;
+
+        // 7. Issue command
+        port->ci |= (1 << slot);
+
+        // 8. Wait for completion
+        while (true)
+        {
+            if ((port->ci & (1 << slot)) == 0)
+                break;
+
+            if (port->is & (1 << 30)) // Task file error
+            {
+                PageAllocater::GetInstance()->FreePage(identify);
+                return false;
+            }
+        }
+
+        if (port->is & (1 << 30))
+        {
+            PageAllocater::GetInstance()->FreePage(identify);
+            return false;
+        }
+
+        // 9. Parse IDENTIFY data
+
+        // Word 60-61 = LBA28 sector count
+        uint32_t lba28 =
+            ((uint32_t)identify[61] << 16) |
+            identify[60];
+
+        // Word 100-103 = LBA48 sector count
+        uint64_t lba48 =
+            ((uint64_t)identify[103] << 48) |
+            ((uint64_t)identify[102] << 32) |
+            ((uint64_t)identify[101] << 16) |
+            identify[100];
+
+        if (lba48 != 0)
+            *sectorcount = lba48;
+        else
+            *sectorcount = lba28;
+
+        // Sector size (usually 512)
+        *sectorsize = 512;
+
+        PageAllocater::GetInstance()->FreePage(identify);
+        return true;
+    }
+
 }

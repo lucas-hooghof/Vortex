@@ -41,3 +41,6 @@ class Logger
         static uint32_t Foregroundcolor;
         static uint32_t BackGroundColor;
 };
+
+
+int snprintf(char* out, size_t size, const char* fmt, ...);

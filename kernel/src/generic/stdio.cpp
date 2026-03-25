@@ -363,3 +363,161 @@ void Logger::DebugLog(const char* fmt,LOG_LEVEL level,...)
     va_end(list);
 #endif
 }
+
+#include <stdarg.h>
+#include <stddef.h>
+
+static void reverse(char* str, int len)
+{
+    for (int i = 0; i < len / 2; i++)
+    {
+        char tmp = str[i];
+        str[i] = str[len - i - 1];
+        str[len - i - 1] = tmp;
+    }
+}
+
+static int itoa_internal(long long value, char* buffer, int base, bool upper)
+{
+    int i = 0;
+
+    if (value == 0)
+    {
+        buffer[i++] = '0';
+        buffer[i] = '\0';
+        return i;
+    }
+
+    while (value != 0)
+    {
+        int rem = value % base;
+        if (rem < 10)
+            buffer[i++] = '0' + rem;
+        else
+            buffer[i++] = (upper ? 'A' : 'a') + (rem - 10);
+
+        value /= base;
+    }
+
+    buffer[i] = '\0';
+    reverse(buffer, i);
+    return i;
+}
+
+int snprintf(char* out, size_t size, const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    size_t pos = 0;      // actual write position (bounded)
+    size_t total = 0;    // total chars that would have been written
+
+    auto putc = [&](char c)
+    {
+        if (pos + 1 < size)
+            out[pos] = c;
+
+        pos++;
+        total++;
+    };
+
+    for (size_t i = 0; fmt[i]; i++)
+    {
+        if (fmt[i] != '%')
+        {
+            putc(fmt[i]);
+            continue;
+        }
+
+        i++; // skip '%'
+
+        if (fmt[i] == '%')
+        {
+            putc('%');
+            continue;
+        }
+
+        char tmp[32];
+
+        switch (fmt[i])
+        {
+            case 'c':
+            {
+                char c = (char)va_arg(args, int);
+                putc(c);
+                break;
+            }
+
+            case 's':
+            {
+                const char* s = va_arg(args, const char*);
+                if (!s) s = "(null)";
+
+                while (*s)
+                    putc(*s++);
+                break;
+            }
+
+            case 'd':
+            case 'i':
+            {
+                int val = va_arg(args, int);
+                long long v = val;
+
+                if (v < 0)
+                {
+                    putc('-');
+                    v = -v;
+                }
+
+                int len = itoa_internal(v, tmp, 10, false);
+                for (int j = 0; j < len; j++)
+                    putc(tmp[j]);
+
+                break;
+            }
+
+            case 'u':
+            {
+                unsigned int val = va_arg(args, unsigned int);
+                int len = itoa_internal(val, tmp, 10, false);
+
+                for (int j = 0; j < len; j++)
+                    putc(tmp[j]);
+
+                break;
+            }
+
+            case 'x':
+            case 'X':
+            {
+                unsigned int val = va_arg(args, unsigned int);
+                bool upper = (fmt[i] == 'X');
+
+                int len = itoa_internal(val, tmp, 16, upper);
+                for (int j = 0; j < len; j++)
+                    putc(tmp[j]);
+
+                break;
+            }
+
+            default:
+                // unknown specifier, just print it
+                putc('%');
+                putc(fmt[i]);
+                break;
+        }
+    }
+
+    // Null-terminate
+    if (size > 0)
+    {
+        if (pos < size)
+            out[pos] = '\0';
+        else
+            out[size - 1] = '\0';
+    }
+
+    va_end(args);
+    return total;
+}

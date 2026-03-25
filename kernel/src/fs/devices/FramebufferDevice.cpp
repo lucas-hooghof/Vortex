@@ -4,6 +4,8 @@
 
 namespace fs
 {
+    int index = 0;
+
     FramebufferDevice::FramebufferDevice(const char* addr,FRAMEBUFFER* fb)
         :Device(addr,FD_READ | FD_WRITE)
     {

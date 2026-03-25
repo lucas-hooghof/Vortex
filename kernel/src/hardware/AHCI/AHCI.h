@@ -163,6 +163,7 @@ namespace PCI
         public:
             AHCI(PCIDeviceHeader* device);
             bool Read(HBA_PORT *port, uint64_t lba, uint32_t count, void *buf);
+            bool IdentityDrive(HBA_PORT* port,size_t* sectorsize,size_t* sectorcount);
             ~AHCI();
 
             HBA_PORT* Ports[32];

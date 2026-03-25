@@ -22,6 +22,7 @@ namespace fs
         virtual size_t Write(size_t buffersize,void* buffer) {(void)buffersize;(void)buffer; return 0;}
         virtual size_t Read(size_t buffersize,void* outbuffer) {(void)buffersize; (void)outbuffer; return 0;};
         virtual void Seek(size_t offset) {(void)offset;}
+        virtual size_t dctl(size_t request) { (void)request; return 0;}
 
         const char* address;
         const int allowedflags;

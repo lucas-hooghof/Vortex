@@ -17,6 +17,7 @@
 #include <fs/VFS.h>
 #include <fs/devices/FramebufferDevice.h>
 #include <fs/partitions.h>
+#include <fs/devices/BlockDevices/SataDevice.h>
 
 
 extern uint64_t _KernelStart;
@@ -149,8 +150,11 @@ bool PrepareHardware(bootinfo_t* info)
             fs::MBR* mbr = (fs::MBR*)readpage;
             PageTableManager::GetInstance()->MapMemory(readpage, readpage, PAGE_PRESENT | PAGE_RW | PAGE_PCD);
             memset(mbr, 0, sizeof(fs::MBR));
+
+            bool found = false;
             for (uint8_t port = 0; port < 32; port++)
             {
+                if (found) continue;
                 if (driver->Ports[port] == nullptr) continue;
 
 
@@ -177,7 +181,15 @@ bool PrepareHardware(bootinfo_t* info)
 
                                 if (!memcmp((void*)&partition.PartitionTypeGUID,(void*)&guid,sizeof(fs::GPTGuid)))
                                 {
-                                    
+                                    for (uint32_t j = 0; j < gpth->NumPartitionEntries; j++)
+                                    {
+                                        if (partitiontable[j].StartingLBA == 0) break;
+                                        char* string = (char*)malloc(32);
+                                        snprintf(string,32,"/dev/sda%d",j);
+                                        fs::SataDevice* device = new fs::SataDevice(string,partitiontable[j].StartingLBA,driver,driver->Ports[port]);
+                                        fs::VFS::RegisterVirtualDevice(device);
+                                    }
+                                    found = true;
                                     break;
                                 }
                             }
@@ -192,21 +204,25 @@ bool PrepareHardware(bootinfo_t* info)
                         driver->Read(driver->Ports[port],1,32,partitiontable);
                         for (uint32_t i = 0; i < gpth->NumPartitionEntries; i++)
                         {
-                            fs::GPTPartition partition = partitiontable[i];
-                            fs::GPTGuid guid = GPT_GUID_VXFS_ROOT;
-
-                            if (partition.StartingLBA == 0) break;
-
-                            if (!memcmp((void*)&partition.PartitionTypeGUID,(void*)&guid,sizeof(fs::GPTGuid)))
+                            for (uint32_t j = 0; j < gpth->NumPartitionEntries; j++)
                             {
-                                //Parse this drive and load it into the VFS
+                                if (partitiontable[j].StartingLBA == 0) break;
+                                char* string = (char*)malloc(32);
+                                snprintf(string,32,"/dev/sda%d",j);
+                                fs::SataDevice* device = new fs::SataDevice(string,partitiontable[j].StartingLBA,driver,driver->Ports[port]);
+                                fs::VFS::RegisterVirtualDevice(device);
                             }
+                            found = true;
+                            break;
                         }
                     }
                 }
             }
 
-            delete driver;
+            if (!found)
+            {
+                delete driver;
+            }
         }
     }
 
