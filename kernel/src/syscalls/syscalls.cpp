@@ -1,6 +1,7 @@
 #include <syscalls/syscalls.h>
 
 #include <fs/VFS.h>
+#include <generic/stdio.h>
 
 ISRHandler handlers[256] =
 {
@@ -40,6 +41,7 @@ void syscall_1_write(ISR_INTERRUPT_FRAME* frame)
 
     if (device != nullptr)
     {
+        Logger::Log("Got here ig\n",LOG_LEVEL::INFO);
         frame->rax = device->Write(size,mem);   
     }
 

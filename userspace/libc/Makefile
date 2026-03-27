@@ -10,7 +10,7 @@ AS      := nasm
 AR      := x86_64-elf-ar
 
 CFLAGS  := -ffreestanding -O2 -Wall -Wextra -Iheaders -mno-red-zone -fno-stack-protector
-ASFLAGS := -f elf64
+ASFLAGS := -f elf64 -g
 
 # ------------------------
 # Find source files
