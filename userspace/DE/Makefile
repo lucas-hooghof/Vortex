@@ -15,9 +15,9 @@ LD      := x86_64-elf-ld
 
 CFLAGS  := -ffreestanding -O2 -Wall -Wextra -mno-red-zone -fno-stack-protector -nostdlib -I ../libc/headers
 CXXFLAGS:= $(CFLAGS) -fno-exceptions -fno-rtti -std=c++20
-ASFLAGS := -f elf64
+ASFLAGS := -f elf64 -g
 
-LDFLAGS := -nostdlib -static -Ttext 0xFFFF8000
+LDFLAGS := -nostdlib -static -Ttext 0xFFFF8000 -g
 
 # ------------------------
 # Source files (flat dir)

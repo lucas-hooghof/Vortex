@@ -81,7 +81,7 @@ static uint8_t isr_code_no_err[] = {
     0x5B,                   // pop rbx
     0x58,                   // pop rax
 
-    0x48, 0x83, 0xC4, 0x08, // add rsp, 8 (remove pushed error code)
+    0x48, 0x83, 0xC4, 0x16, // add rsp, 8 (remove pushed error code)
 
     0x48, 0xCF              // iretq
 };
@@ -153,7 +153,7 @@ static uint8_t isr_code_err[] = {
     0x5B,                   // pop rbx
     0x58,                   // pop rax
 
-    0x48, 0x83, 0xC4, 0x08, // add rsp, 8 (remove pushed error code)
+    0x48, 0x83, 0xC4, 0x16, // add rsp, 8 (remove pushed error code)
 
     0x48, 0xCF              // iretq
 };

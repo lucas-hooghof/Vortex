@@ -83,7 +83,7 @@ void* LoadElf(void* buffer)
             PageTableManager::GetInstance()->MapMemory(
                 virt,
                 phys,
-                PAGE_PRESENT | PAGE_RW | PAGE_US
+                PAGE_PRESENT | PAGE_RW 
             );
         }
 
