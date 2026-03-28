@@ -7,10 +7,11 @@ typedef unsigned long size_t;
 
 typedef int fid_t;
 
-#define FD_READ 0x01
+#define FD_READ  0x01
 #define FD_WRITE 0x02
 
-fid_t open(const char* location,int flags);
-size_t write(fid_t file,size_t size,void* buffer);
+fid_t open(const char* location, int flags);
+
+size_t write(fid_t file, void* buffer, size_t size);
 
 #endif

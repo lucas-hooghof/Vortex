@@ -2,10 +2,11 @@
 
 int _start()
 {
+    fid_t fid = open("/dev/fb0", FD_WRITE);
 
-    fid_t fid = open("/dev/fb0",FD_WRITE);
     unsigned int pixel = 0xFFFF0000;
-    write(fid,4,(void*)&pixel);
 
-    while(1) {}
+    write(fid, (void*)&pixel, 4);
+
+    while (1) {}
 }

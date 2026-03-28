@@ -24,25 +24,27 @@ void syscall_handler(ISR_INTERRUPT_FRAME* frame)
 
 void syscall_0_open(ISR_INTERRUPT_FRAME* frame)
 {
-    const char* addr = (const char*)frame->rbx;
-    int flags = frame->rcx;
+    const char* addr = (const char*)frame->rdi;  // arg1
+    int flags = frame->rsi;                      // arg2
 
-    fid_t fid = fs::VFS::Open(addr,flags);
+    fid_t fid = fs::VFS::Open(addr, flags);
 
     frame->rax = fid;
 }
+
 void syscall_1_write(ISR_INTERRUPT_FRAME* frame)
 {
-    fid_t fid = frame->rbx;
-    size_t size = frame->rcx;
-    void* mem = (void*)frame->rdx;
+    fid_t fid   = frame->rdi;   // arg1
+    void* mem   = (void*)frame->rsi; // arg2 (buffer)
+    size_t size = frame->rdx;   // arg3
 
     fs::Device* device = fs::VFS::GetInterface(fid);
 
     if (device != nullptr)
     {
-        Logger::Log("Got here ig\n",LOG_LEVEL::INFO);
-        frame->rax = device->Write(size,mem);   
+        Logger::Log("Got here ig\n", LOG_LEVEL::INFO);
+        frame->rax = device->Write(size, mem);
+        return;
     }
 
     frame->rax = 0;
