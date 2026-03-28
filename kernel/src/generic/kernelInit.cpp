@@ -121,6 +121,7 @@ bool PrepareInterrupts()
 
     asm volatile ("lidt %0" : : "m"(idtr));
     if(!InitilizeISR()) { return false; }
+    GenerateISR(0x80,0x20,RING3_INTERRUPT_GATE);
     RegisterHandler(0x80,syscall_handler);
     asm volatile ("sti");
 

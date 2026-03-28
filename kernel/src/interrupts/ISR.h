@@ -19,7 +19,7 @@ struct ISR_INTERRUPT_FRAME
 typedef void (*ISRHandler)(ISR_INTERRUPT_FRAME* frame);
 
 bool InitilizeISR();
-void GenerateISR(uint8_t IntteruptNumber);
+void GenerateISR(uint8_t IntteruptNumber,uint16_t segment,uint8_t flags);
 
 void RegisterHandler(uint8_t IntteruptNumber,ISRHandler handler);
 

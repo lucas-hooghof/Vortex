@@ -17,7 +17,7 @@ CFLAGS  := -ffreestanding -O2 -Wall -Wextra -mno-red-zone -fno-stack-protector -
 CXXFLAGS:= $(CFLAGS) -fno-exceptions -fno-rtti -std=c++20
 ASFLAGS := -f elf64 -g
 
-LDFLAGS := -nostdlib -static -Ttext 0xFFFF8000 -g
+LDFLAGS := -nostdlib -static -T linker.ld -g
 
 # ------------------------
 # Source files (flat dir)

@@ -87,6 +87,9 @@ void* LoadElf(void* buffer)
             );
         }
 
+        if (ph->p_filesz == 0) continue;
+
+
         // Copy file data
         memcpy(
             (void*)ph->p_vaddr,
@@ -94,15 +97,15 @@ void* LoadElf(void* buffer)
             ph->p_filesz
         );
 
-        // Zero BSS
-        if (ph->p_memsz > ph->p_filesz)
-        {
-            memset(
-                (void*)(ph->p_vaddr + ph->p_filesz),
-                0,
-                ph->p_memsz - ph->p_filesz
-            );
-        }
+        //// Zero BSS
+        //if (ph->p_memsz > ph->p_filesz)
+        //{
+        //    memset(
+        //        (void*)(ph->p_vaddr + ph->p_filesz),
+        //        0,
+        //        ph->p_memsz - ph->p_filesz
+        //    );
+        //}
     }
 
     return (void*)ehdr->e_entry;
@@ -141,18 +144,21 @@ extern "C" void __attribute__((noreturn)) kernel_main(bootinfo_t* info)
     size_t size = 0;
     vxfs.readfile("/bin/DE",nullptr,&size);
 
-    void* DE = malloc(size);
+    void* DE = PageAllocater::GetInstance()->RequestPages((size + 4095) / 4096);
+
     if (!vxfs.readfile("/bin/DE",DE,&size))
     {
         Logger::Log("Failed to load DE",LOG_LEVEL::INFO);
         while (1) {}
     }
 
+
     void* entrypoint = LoadElf(DE);
 
     using entry_t = void (*)();
 
     entry_t entry = (entry_t)entrypoint;
+    
     entry();
     
 

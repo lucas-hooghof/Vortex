@@ -1,7 +1,11 @@
 #include <generic/string.h>
 
+#include <generic/stdio.h>
+
 void* memcpy(void* dest,const void* src,size_t count)
 {
+    Logger::DebugLog("Memcpy: From %x to %x\n",LOG_LEVEL::INFO,(uint64_t)dest,(uint64_t)src);
+
     asm volatile ("rep movsb" : : "D"(dest),"S"(src),"c"(count) : "memory");
 
     return dest;

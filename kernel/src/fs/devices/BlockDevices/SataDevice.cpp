@@ -12,14 +12,19 @@ namespace fs
         currentlba = 0;
         lbastart = drivelbastart;
 
+
         ahci->IdentityDrive(dport,&sectorsize,&lba);
     }
 
     size_t SataDevice::Read(size_t buffersize,void* outbuffer)
     {
-        void* pages = PageAllocater::GetInstance()->RequestPages((buffersize + 511) / 512);
+        void* pages = PageAllocater::GetInstance()->RequestPages((buffersize + 4095) / 4096);
 
         ahci->Read(dport,lbastart + currentlba,(buffersize + 511) / 512,pages);
+        uint8_t* b = (uint8_t*)pages;
+        Logger::Log("bytes: %x %x %x %x\n", LOG_LEVEL::INFO, b[0], b[1], b[2], b[3]);
+
+        currentlba += ((buffersize + 511) / 512 );
 
         memcpy(outbuffer,pages,buffersize);
 
@@ -29,7 +34,7 @@ namespace fs
 
     void SataDevice::Seek(size_t offset)
     {
-        currentlba = (offset + 511) / 512;
+        currentlba = offset / 512;
     }
 
     size_t SataDevice::Write(size_t buffersize,void* buffer)

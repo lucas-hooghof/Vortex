@@ -165,7 +165,7 @@ bool InitilizeISR()
 {
     for (size_t i = 0; i < IDT_ENTRY_COUNT; i++)
     {
-        GenerateISR(i);
+        GenerateISR(i,0x08,RING0_INTERRUPT_GATE);
     }
     return true;
 }
@@ -247,11 +247,11 @@ void isr_handler(ISR_INTERRUPT_FRAME* frame)
     }
 }
 
-void GenerateISR(uint8_t interrupt)
+void GenerateISR(uint8_t interrupt,uint16_t segment,uint8_t flags)
 {
     uint8_t* dest = ISRWritePtr;
     if (ISRAdded[interrupt]) return;
-    idt_set_descriptor(interrupt,0x08,RING0_INTERRUPT_GATE,0,dest);
+    idt_set_descriptor(interrupt,segment,flags,0,dest);
     ISRAdded[interrupt] = true;
     if (HasErrorCode(interrupt))
     {

@@ -78,10 +78,15 @@ namespace fs
 
         size_t size = currentextent->SizeInSectors * 512;
 
+        Logger::Log("Size: %u\n",LOG_LEVEL::INFO,size);
+
         void* tempbuffer = PageAllocater::GetInstance()->RequestPages((size + 4095) / 4096);
 
         satadevice->Seek(currentextent->StartSector * 512);
         satadevice->Read(size, tempbuffer);
+
+        Logger::DebugLog("extents: start: %x size: %x\n",LOG_LEVEL::INFO,currentextent->StartSector,currentextent->SizeInSectors);
+        Logger::DebugLog("Address Temp Buffer: %x\n",LOG_LEVEL::INFO,(uint64_t)tempbuffer);
 
         memcpy(buffer,tempbuffer,size);
 
